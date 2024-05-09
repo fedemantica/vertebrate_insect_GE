@@ -1,1 +1,1 @@
-# vertebrate_insect_GE
+# Sequence and Expression Divergence of Ancestral Genes in Vertebrates and Insects
