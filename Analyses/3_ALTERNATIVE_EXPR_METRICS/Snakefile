@@ -1,0 +1,130 @@
+configfile: "config.yaml"
+
+###### paths ###############
+DATA = config["general_paths"]["data"]
+SRC = config["general_paths"]["src"]
+CONDA_ENVS = config["general_paths"]["conda_envs"]
+GENE_SETS_DIR = config["paths"]["gene_sets_dir"]
+ORIGINAL_REL_EXPR_DIR = config["paths"]["original_rel_expr_dir"]
+REL_EXPR_DIR = config["paths"]["rel_expr_dir"]
+PARALOG_SETS_DIR = config["paths"]["paralog_sets_dir"]
+
+######## tools ############
+COMPUTE_REL_EXPR = config["tools"]["compute_rel_expr"]
+COMPUTE_PAIRWISE_EXPR_SIM = config["tools"]["compute_pairwise_expr_sim"]
+COMPUTE_PAIRWISE_EXPR_COR = config["tools"]["compute_pairwise_expr_cor"]
+COMPUTE_PAIRWISE_EXPR_DIST = config["tools"]["compute_pairwise_expr_dist"]
+
+###### variables ###########
+ALL_SPECIES = config["variables"]["all_species"]
+BILATERIA = ALL_SPECIES
+VERTEBRATA = config["variables"]["vertebrata"]
+INSECTA = config["variables"]["insecta"]
+DEUTEROSTOMA = config["variables"]["deuterostoma"]
+PROTOSTOMA = config["variables"]["protostoma"]
+
+CLADE_SPECIES_DICT = {}
+CLADE_SPECIES_DICT["Vertebrata"] = VERTEBRATA
+CLADE_SPECIES_DICT["Insecta"] = INSECTA
+CLADE_SPECIES_DICT["Bilateria"] = BILATERIA
+
+ALL_TISSUES = config["variables"]["all_tissues"]
+
+MY_MEASURES = config["variables"]["my_measures"]
+PARALOG_TYPES = config["variables"]["paralog_types"]
+
+#Count batches number and get a list of all batches
+import os.path
+BATCHES_FILE = PARALOG_SETS_DIR+"/orthogroups_batches/batches_number.txt"
+if os.path.isfile(BATCHES_FILE):
+  with open(BATCHES_FILE) as f:
+    TOT_BATCHES = int(f.readline().strip())
+    BATCH_NUMBER = list(range(1, TOT_BATCHES+1))
+else:
+  BATCH_NUMBER = 1
+
+###### targets ##########
+ALL_PAIRWISE_EXPR_COR = PARALOG_SETS_DIR+"/pairwise_expression_correlations/all_pairwise_expression_correlations.txt"
+ALL_PAIRWISE_EXPR_DIST = PARALOG_SETS_DIR+"/pairwise_expression_distances/all_pairwise_expression_distances.txt"
+
+####### rules ############
+rule all:	
+	input:
+		ALL_PAIRWISE_EXPR_COR,
+		ALL_PAIRWISE_EXPR_DIST
+
+#######################################################
+###### COMPUTE PAIRWISE EXPRESSION CORRELATIONS #######
+#######################################################
+
+### See at the beginning of the Snakefile for the definition of batch number
+rule compute_pairwise_expr_correlations:
+	input:
+		orthogroups = PARALOG_SETS_DIR+"/orthogroups_batches/orthogroups_batch_{batch_number}.txt",
+		rel_expr_files = expand(REL_EXPR_DIR+"/{species}-protein_coding_relative_ts.tab", species=VERTEBRATA+[species if species != "BmA" else "Bmo" for species in INSECTA])
+	output:
+		PARALOG_SETS_DIR+"/pairwise_expression_correlations/batch_{batch_number}-expression_correlations.tab"
+	params:
+		expr_table_dir = REL_EXPR_DIR,
+		expr_file_suffix = "-protein_coding_relative_ts.tab",
+		clade_species = ",".join(VERTEBRATA+[species if species != "BmA" else "Bmo" for species in INSECTA]),
+		tissues = ",".join(ALL_TISSUES),
+	shell:
+		"""
+		python {COMPUTE_PAIRWISE_EXPR_COR}	--orthogroups {input.orthogroups} \
+							--expr_table_dir {params.expr_table_dir} \
+							--expr_file_suffix="{params.expr_file_suffix}" \
+							--clade_species "{params.clade_species}" \
+							--tissues "{params.tissues}" \
+							--output {output}
+		"""
+
+rule join_pairwise_expr_correlations:
+	input:
+		expand("{path}/pairwise_expression_correlations/batch_{batch_number}-expression_correlations.tab", path=PARALOG_SETS_DIR, batch_number=BATCH_NUMBER)
+	output:
+		PARALOG_SETS_DIR+"/pairwise_expression_correlations/all_pairwise_expression_correlations.txt"
+	params:
+		input_dir = PARALOG_SETS_DIR+"/pairwise_expression_correlations"
+	shell:
+		"""
+		cat {params.input_dir}/batch_*-expression_correlations.tab > {output}	
+		"""
+
+#######################################################
+###### COMPUTE PAIRWISE EXPRESSION DISTANCES ##########
+#######################################################
+
+### See at the beginning of the Snakefile for the definition of batch number
+rule compute_pairwise_expr_distances:
+	input:
+		orthogroups = PARALOG_SETS_DIR+"/orthogroups_batches/orthogroups_batch_{batch_number}.txt",
+		rel_expr_files = expand(REL_EXPR_DIR+"/{species}-protein_coding_relative_ts.tab", species=VERTEBRATA+[species if species != "BmA" else "Bmo" for species in INSECTA])
+	output:
+		PARALOG_SETS_DIR+"/pairwise_expression_distances/batch_{batch_number}-expression_distances.tab"
+	params:
+		expr_table_dir = REL_EXPR_DIR,
+		expr_file_suffix = "-protein_coding_relative_ts.tab",
+		clade_species = ",".join(VERTEBRATA+[species if species != "BmA" else "Bmo" for species in INSECTA]),
+		tissues = ",".join(ALL_TISSUES),
+	shell:
+		"""
+		python {COMPUTE_PAIRWISE_EXPR_DIST}	--orthogroups {input.orthogroups} \
+							--expr_table_dir {params.expr_table_dir} \
+							--expr_file_suffix="{params.expr_file_suffix}" \
+							--clade_species "{params.clade_species}" \
+							--tissues "{params.tissues}" \
+							--output {output}
+		"""
+
+rule join_pairwise_expr_distances:
+	input:
+		expand("{path}/pairwise_expression_distances/batch_{batch_number}-expression_distances.tab", path=PARALOG_SETS_DIR, batch_number=BATCH_NUMBER)
+	output:
+		PARALOG_SETS_DIR+"/pairwise_expression_distances/all_pairwise_expression_distances.txt"
+	params:
+		input_dir = PARALOG_SETS_DIR+"/pairwise_expression_distances"
+	shell:
+		"""
+		cat {params.input_dir}/batch_*-expression_distances.tab > {output}	
+		"""

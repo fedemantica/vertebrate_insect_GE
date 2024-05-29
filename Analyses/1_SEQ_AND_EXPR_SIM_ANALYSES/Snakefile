@@ -1,0 +1,320 @@
+configfile: "config.yaml"
+
+###### paths ###############
+DATA = config["general_paths"]["data"]
+SRC = config["general_paths"]["src"]
+CONDA_ENVS = config["general_paths"]["conda_envs"]
+NOBACKUP_DIR = config["general_paths"]["nobackup_dir"]
+GENERAL_PATTERNS = config["paths"]["general_patterns"]
+GENE_SETS_DIR = config["paths"]["gene_sets_dir"]
+PCA_ANALYSIS_DIR = config["paths"]["pca_analysis"]
+GO_TRANSFERS = config["paths"]["go_transfers"]
+ORIGINAL_REL_EXPR_DIR = config["paths"]["original_rel_expr_dir"]
+REL_EXPR_DIR = config["paths"]["rel_expr_dir"]
+GTF_REF_DIR = config["paths"]["gtf_ref_dir"]
+DATABASE = config["paths"]["database"]
+GENERAL_PATTERNS_BD = config["paths"]["general_patterns_BD"]
+GENERAL_PATTERNS_BA = config["paths"]["general_patterns_BA"]
+PARALOG_SETS_DIR = config["paths"]["paralog_sets_dir"]
+
+######## tools ############
+RUN_GPROFILER2 = config["tools"]["run_gprofiler2"]
+GET_GMT_FILES = config["tools"]["get_gmt_files"]
+COMPUTE_REL_EXPR = config["tools"]["compute_rel_expr"]
+GET_START_STOP_INFO = config["tools"]["get_start_stop_info"]
+GET_CDS_EXONS = config["tools"]["get_CDS_exons"]
+FORMAT_PHYLOP_SCORES = config["tools"]["format_phyloP_scores"]
+SELECT_BEST_DIVERGENT_ORTHOLOGS = config["tools"]["select_best_divergent_orthologs"]
+SELECT_BEST_ANCESTRAL_ORTHOLOGS = config["tools"]["select_best_ancestral_orthologs"]
+TRANSFER_GO_SETS = config["tools"]["transfer_GO_sets"]
+
+###### variables ###########
+ALL_SPECIES = config["variables"]["all_species"]
+BILATERIA = ALL_SPECIES
+VERTEBRATA = config["variables"]["vertebrata"]
+INSECTA = config["variables"]["insecta"]
+DEUTEROSTOMA = config["variables"]["deuterostoma"]
+PROTOSTOMA = config["variables"]["protostoma"]
+
+CLADE_SPECIES_DICT = {}
+CLADE_SPECIES_DICT["Vertebrata"] = VERTEBRATA
+CLADE_SPECIES_DICT["Insecta"] = INSECTA
+CLADE_SPECIES_DICT["Bilateria"] = BILATERIA
+
+ALL_TISSUES = config["variables"]["all_tissues"]
+
+MY_MEASURES = config["variables"]["my_measures"]
+CONSERVATION_CATEGORIES = config["variables"]["conservation_categories"]
+PARALOG_TYPES = config["variables"]["paralog_types"]
+EXTRA_EXPR_METRICS = config["variables"]["extra_expr_metrics"]
+
+#Count batches number and get a list of all batches
+import os.path
+BATCHES_FILE = PARALOG_SETS_DIR+"/orthogroups_batches/batches_number.txt"
+if os.path.isfile(BATCHES_FILE):
+  with open(BATCHES_FILE) as f:
+    TOT_BATCHES = int(f.readline().strip())
+    BATCH_NUMBER = list(range(1, TOT_BATCHES+1))
+else:
+  BATCH_NUMBER = 1
+
+
+###### targets ##########
+DEFINE_GENE_GROUPS = expand("{path}/{paralog_type}/{measure}/GO_enrichments/{measure}-{gene_number}_{category}-{paralog_type}_genes-GO_input.tab", path=GENERAL_PATTERNS, measure=MY_MEASURES, gene_number=500, category=CONSERVATION_CATEGORIES, paralog_type=PARALOG_TYPES)
+TRANSFERRED_GOS = expand("{path}/GO_annotations/backgrounds/Bilateria_conserved-GO_transfers-{paralog_type}_genes.gmt", path=DATA, paralog_type=PARALOG_TYPES)
+EXTRA_METRICS_BY_CLADE = expand("{path}/{paralog_type}/{measure}/{measure}_by_clade-{paralog_type}_genes.tab", path=GENERAL_PATTERNS, paralog_type="ALL", measure=EXTRA_EXPR_METRICS)
+PHYLOP_SCORES = expand("{path}/phyloP_scores_v1/Hs2-{paralog_type}_genes-phyloP_scores_average.tab", path=DATA, paralog_type="ALL")
+
+####### rules ############
+rule all:	
+	input:
+		DATA+"/phyloP_scores_v1/Hs2-ALL_genes-sequence_similarities.tab",
+		DATA+"/phyloP_scores_v1/Hs2-ALL_genes-phyloP_scores_average.tab"
+		#expand(DATA+"/phyloP_scores_v1/chr{chr_number}/Hs2-ALL_genes-phyloP_scores-orthogroups_batch_{batch_number}.tab", chr_number=[str(x) for x in list(range(1,23))]+["X", "Y"], batch_number=BATCH_NUMBER)
+		#PHYLOP_SCORES,
+		#EXTRA_METRICS_BY_CLADE
+		#DEFINE_GENE_GROUPS,
+		#TRANSFERRED_GOS
+
+#######################################################
+###### SEQ SIM AND EXPR SIM BY OG #####################
+#######################################################
+
+#### This rule can be used for all 6 paralog groups
+rule compute_average_measure_by_OG:
+	input:
+		measure_file = PARALOG_SETS_DIR+"/pairwise_{measure}/all_pairwise_{measure}.txt"
+	output:
+		GENERAL_PATTERNS+"/{paralog_type}/{measure}/{measure}_by_clade-{paralog_type}_genes.tab",
+	params:
+		vertebrata = VERTEBRATA,
+		insecta = INSECTA
+	run:
+		import pandas as pd
+		import re
+
+		#Read input
+		measure_df = pd.read_table(str(input.measure_file), sep="\t", index_col=False, header=None, names=["OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", str(wildcards.measure)])
+
+		#Filter only for Vertebrate species
+		measure_vertebrate_df = measure_df.loc[(measure_df["Species1"].isin(params.vertebrata)) & (measure_df["Species2"].isin(params.vertebrata))]
+		measure_vertebrate_df = measure_vertebrate_df.rename(columns={str(wildcards.measure) : str(wildcards.measure)+"_vertebrata"})
+		#For each GeneID and target species, compute the average of the target species paralogs
+		measure_vertebrate_mean_df = measure_vertebrate_df.groupby(["OG_ID", "Species1", "GeneID1", "Species2"]).mean().reset_index()
+		#For each GeneID, compute the average among target species
+		measure_vertebrate_mean_df = measure_vertebrate_mean_df.groupby(["OG_ID", "Species1", "GeneID1"]).mean().reset_index()
+		#For each Species, compute the average among its geneIDs
+		measure_vertebrate_mean_df = measure_vertebrate_mean_df.groupby(["OG_ID", "Species1"]).mean().reset_index()
+		#For each OG, compute the average among all species
+		measure_vertebrate_mean_df = measure_vertebrate_mean_df.groupby(["OG_ID"]).mean().reset_index()
+
+		#Filter only for Insect species
+		measure_insect_df = measure_df.loc[(measure_df["Species1"].isin(params.insecta)) & (measure_df["Species2"].isin(params.insecta))]
+		measure_insect_df = measure_insect_df.rename(columns={str(wildcards.measure) : str(wildcards.measure)+"_insecta"})
+		#For each GeneID and target species, compute the average of the target species paralogs
+		measure_insect_mean_df = measure_insect_df.groupby(["OG_ID", "Species1", "GeneID1", "Species2"]).mean().reset_index()
+		#For each GeneID, compute the average among target species
+		measure_insect_mean_df = measure_insect_mean_df.groupby(["OG_ID", "Species1", "GeneID1"]).mean().reset_index()
+		#For each Species, compute the average among its geneIDs
+		measure_insect_mean_df = measure_insect_mean_df.groupby(["OG_ID", "Species1"]).mean().reset_index()
+		#For each OG, compute the average among all species
+		measure_insect_mean_df = measure_insect_mean_df.groupby(["OG_ID"]).mean().reset_index()
+
+		#Combine the two dataframes
+		combined_df = pd.merge(measure_vertebrate_mean_df, measure_insect_mean_df, on="OG_ID")
+		#Compute delta
+		combined_df[str(wildcards.measure)+"_delta"] = combined_df[str(wildcards.measure)+"_vertebrata"] - combined_df[str(wildcards.measure)+"_insecta"]
+		#Save to output
+		combined_df.to_csv(str(output), sep="\t", header=True, index=False, na_rep="NA")
+
+#######################################################
+###### DEFINE MOST/LEAST CONSERVED CATEGORIES #########
+#######################################################
+
+#We can set for the top 500 genes for both directions and the delta
+rule define_conservation_categories:
+	input:
+		GENERAL_PATTERNS+"/{paralog_type}/{measure}/{measure}_by_clade-{paralog_type}_genes.tab"
+	output:
+		vertebrata_most_conserved = GENERAL_PATTERNS+"/{paralog_type}/{measure}/{measure}-{gene_number}_vertebrata_most_conserved-{paralog_type}_genes.tab",
+		vertebrata_least_conserved = GENERAL_PATTERNS+"/{paralog_type}/{measure}/{measure}-{gene_number}_vertebrata_least_conserved-{paralog_type}_genes.tab",
+		insecta_most_conserved = GENERAL_PATTERNS+"/{paralog_type}/{measure}/{measure}-{gene_number}_insecta_most_conserved-{paralog_type}_genes.tab",
+		insecta_least_conserved = GENERAL_PATTERNS+"/{paralog_type}/{measure}/{measure}-{gene_number}_insecta_least_conserved-{paralog_type}_genes.tab",
+		highest_delta = GENERAL_PATTERNS+"/{paralog_type}/{measure}/{measure}-{gene_number}_highest_delta-{paralog_type}_genes.tab",
+		lowest_delta = GENERAL_PATTERNS+"/{paralog_type}/{measure}/{measure}-{gene_number}_lowest_delta-{paralog_type}_genes.tab",
+	run:
+		import pandas as pd
+
+		#### Upload input table
+		input_df = pd.read_table(str(input), sep="\t", header=0, index_col=False, names=["OG_ID", "Vertebrata", "Insecta", "Delta"])
+		#### Get Outputs
+		#Order by measure (ascending order). Remove eventual NA entries
+		vertebrata_sorted_df = input_df.sort_values(by=["Vertebrata"]).dropna(subset=["Vertebrata"])
+		insecta_sorted_df = input_df.sort_values(by=["Insecta"]).dropna(subset=["Insecta"])
+		delta_sorted_df = input_df.sort_values(by=["Delta"]).dropna(subset=["Delta"])
+		#Select top/bottom genes
+		vertebrata_most_conserved_df = vertebrata_sorted_df.tail(int(wildcards.gene_number))
+		vertebrata_least_conserved_df = vertebrata_sorted_df.head(int(wildcards.gene_number)) 	
+		insecta_most_conserved_df = insecta_sorted_df.tail(int(wildcards.gene_number))
+		insecta_least_conserved_df = insecta_sorted_df.head(int(wildcards.gene_number))
+		highest_delta_df = delta_sorted_df.tail(int(wildcards.gene_number))
+		lowest_delta_df = delta_sorted_df.head(int(wildcards.gene_number))
+		#### Save Outputs
+		vertebrata_most_conserved_df.to_csv(str(output.vertebrata_most_conserved), sep="\t", header=True, index=False, na_rep="NA")
+		vertebrata_least_conserved_df.to_csv(str(output.vertebrata_least_conserved), sep="\t", header=True, index=False, na_rep="NA")
+		insecta_most_conserved_df.to_csv(str(output.insecta_most_conserved), sep="\t", header=True, index=False, na_rep="NA")
+		insecta_least_conserved_df.to_csv(str(output.insecta_least_conserved), sep="\t", header=True, index=False, na_rep="NA")
+		highest_delta_df.to_csv(str(output.highest_delta), sep="\t", header=True, index=False, na_rep="NA")
+		lowest_delta_df.to_csv(str(output.lowest_delta), sep="\t", header=True, index=False, na_rep="NA")
+
+
+#######################################################
+###### NEW GO TRANSFERS BASED ON BEST HITS ############
+#######################################################
+
+rule generate_GO_txt:
+	input:
+		GOs = "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/GO_annotations/test/Hs2-test.txt",
+		orthogroups = PARALOG_SETS_DIR+"/selected_paralog_sets/Bilateria_conserved-{paralog_type}_genes.txt"
+	output:
+		DATA+"/GO_annotations/backgrounds/Bilateria_conserved-GO_transfers-{paralog_type}_genes.txt"
+	params:
+		query_species = "Hs2"
+	conda:
+		CONDA_ENVS+"/R4.2_env.yml"
+	shell:
+		"""
+		Rscript {TRANSFER_GO_SETS}	--GO {input.GOs} \
+						--orthogroups {input.orthogroups} \
+						--query_species {params.query_species} \
+						--output {output}
+		"""
+
+
+rule generate_GO_gmt:
+	input:
+		DATA+"/GO_annotations/backgrounds/Bilateria_conserved-GO_transfers-{paralog_type}_genes.txt"	
+	output:
+		DATA+"/GO_annotations/backgrounds/Bilateria_conserved-GO_transfers-{paralog_type}_genes.gmt"
+	shell:
+		"""
+		python {GET_GMT_FILES} -GO {input} -o {output}
+		"""
+
+#######################################################
+###### GO_ENRICHMENTS  ################################
+#######################################################
+
+rule get_GO_enrichments_inputs:
+	input:
+		GENERAL_PATTERNS+"/{paralog_type}/{measure}/{measure}-{gene_number}_{category}-{paralog_type}_genes.tab"
+	output:
+		GENERAL_PATTERNS+"/{paralog_type}/{measure}/GO_enrichments/{measure}-{gene_number}_{category}-{paralog_type}_genes-GO_input.tab"
+	shell:
+		"""
+		cat {input} | tail -n+2 | cut -f1 > {output}
+		"""
+
+#######################################################
+######## COMPARE WITH PHYLOP SCORE ####################
+#######################################################
+
+
+rule start_stop_info_by_gene:
+	input:
+		GTF_REF_DIR+"/{species}_annot-B-brochi.gtf"
+	output:
+		DATABASE+"/gene_extra_info/{species}_start_stop.tab"
+	shell:
+		"""
+		python {GET_START_STOP_INFO} --input {input} --output {output}
+		"""
+
+rule CDS_exons_by_gene:
+	input:
+		GTF_REF_DIR+"/{species}_annot-B-brochi.gtf"
+	output:
+		DATABASE+"/gene_extra_info/{species}-CDS_exons.tab"
+	shell:
+		"""
+		python {GET_CDS_EXONS} --input {input} --output {output}
+		"""
+
+### This is downloaded from UCSC
+rule download_phyloP_score_by_chr:
+	output:
+		NOBACKUP_DIR+"/phyloP/chr{chr_number}.phastCons100way.wigFix.gz"
+	shell:
+		"""
+		wget -O {output} http://hgdownload.cse.ucsc.edu/goldenPath/hg38/phastCons100way/hg38.100way.phastCons/chr{wildcards.chr_number}.phastCons100way.wigFix.gz
+		"""
+
+rule format_phyloP_scores:
+	input:
+		NOBACKUP_DIR+"/phyloP/chr{chr_number}.phastCons100way.wigFix.gz"
+	output:
+		NOBACKUP_DIR+"/phyloP/chr{chr_number}.phastCons100way.tab.gz"
+	shell:
+		"""
+		zcat {input} | awk 'BEGIN {{FS=OFS="\t"}} /^fixedStep/ {{split($0, a, "[=]"); chrom = a[2]; start = a[3]; step = 1; pos = start; next;}} {{print chrom, pos, pos+1, $1; pos += step;}}' \
+		| sed 's/ start//; s/ step//g' | gzip > {output}
+		"""
+
+### This will return the phyloP score for each nucleotide of each gene
+rule associated_genes_with_phyloP_scores:
+	input:
+		start_stop_info = DATABASE+"/gene_extra_info/Hs2-CDS_exons.tab",
+		orthogroups = PARALOG_SETS_DIR+"/selected_paralog_sets/Bilateria_conserved-{paralog_type}_genes.txt",
+		phyloP_scores = NOBACKUP_DIR+"/phyloP/chr{chr_number}.phastCons100way.tab.gz"
+	output:
+		DATA+"/phyloP_scores_v1/Hs2-{paralog_type}_genes-phyloP_scores-chr{chr_number}.tab"
+	shell:
+		"""
+		cat {input.start_stop_info} | awk '$2=="chr{wildcards.chr_number}"' \
+		| filter_1col 1 <(cat {input.orthogroups} | awk '$2=="Hs2" {{print $3}}' | translate -a <(cat {input.start_stop_info} | cut -f1,2 | sort | uniq) 1 \
+		| awk '$2=="chr{wildcards.chr_number}" {{print $1}}') | awk -v OFS="\t" '{{print $2,$3,$4,$1}}' > {output}.tmp; \
+		/software/mi/bin/bedtools intersect -wa -wb -a {output}.tmp -b {input.phyloP_scores} > {output}; \
+		rm {output}.tmp
+		"""
+
+
+rule compute_average_phyloP_score_by_gene:
+	input:
+		cons_score = expand(DATA+"/phyloP_scores_v1/Hs2-{{paralog_type}}_genes-phyloP_scores-chr{chr_number}.tab", chr_number=[str(x) for x in list(range(1,23))]+["X", "Y"]),
+		orthogroups = PARALOG_SETS_DIR+"/selected_paralog_sets/Bilateria_conserved-{paralog_type}_genes.txt"
+	output:
+		DATA+"/phyloP_scores_v1/Hs2-{paralog_type}_genes-phyloP_scores_average.tab"
+	shell:
+		"""
+		cat {input.cons_score} | awk -v OFS="\t" '{{seen[$4]+=$8; count[$4]++}} END {{for (x in seen) print x, seen[x]/count[x]}}' \
+		| translate -a <(cat {input.orthogroups} | grep Hs2 | awk '{{print $3"\t"$1}}') 1 | awk -v OFS="\t" '{{print $2,$1,$3}}' > {output}
+		"""
+
+
+########## COUNTERPART WITH THE AVERAGE SEQ SIM AMONG VERTEBRATES
+rule compute_average_measure_by_human_gene:
+	input:
+		measure_file = PARALOG_SETS_DIR+"/pairwise_{measure}/all_pairwise_{measure}.txt"
+	output:
+		DATA+"/phyloP_scores_v1/Hs2-ALL_genes-{measure}.tab"
+	params:
+		vertebrata = VERTEBRATA,
+	run:
+		import pandas as pd
+		import re
+
+		#Read input
+		measure_df = pd.read_table(str(input.measure_file), sep="\t", index_col=False, header=None, names=["OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", str(wildcards.measure)])
+
+		#Filter only for human comparisons
+		measure_vertebrate_df = measure_df.loc[(measure_df["Species1"]=="Hs2") & (measure_df["Species2"].isin(params.vertebrata))]
+		measure_vertebrate_df = measure_vertebrate_df.rename(columns={str(wildcards.measure) : str(wildcards.measure)+"_vertebrata"})
+		#For each GeneID and target species, compute the average of the target species paralogs
+		measure_vertebrate_mean_df = measure_vertebrate_df.groupby(["OG_ID", "Species1", "GeneID1", "Species2"]).mean().reset_index()
+		#For each GeneID, compute the average among target species
+		measure_vertebrate_mean_df = measure_vertebrate_mean_df.groupby(["OG_ID", "Species1", "GeneID1"]).mean().reset_index()
+		#Drop the species column
+		measure_vertebrate_mean_df = measure_vertebrate_mean_df.drop(columns=["Species1"])
+
+		#Save to output
+		measure_vertebrate_mean_df.to_csv(str(output), sep="\t", header=False, index=False, na_rep="NA")
