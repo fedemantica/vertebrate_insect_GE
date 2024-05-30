@@ -59,7 +59,6 @@ This folder contains snakemake pipeline a (i.e., **Snakefile**) used to run the 
 * Compute **all pairwise expression distances** (euclidean distance) between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression across tissues.  
 * NB: the rule used to compute **average expression correlations or distance** (spearman's rho or euclidean distance, respectively) for each gene orthogroup in vertebrates and insects is present in the snakemake pipeline Analyses/2_PARALOGOUS_SETS_SELECTION.
 
-<br>
 
 ### Figures
 
