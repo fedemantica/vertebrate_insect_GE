@@ -21,19 +21,43 @@ Vertebrates and insects diverged approximately 700 million years ago, and yet th
 
 ### Analyses  
 
-This folder contains a snakemake pipeline (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
+This folder contains 4 subfolders, each containing a different snakemake pipeline and relative files.   
 
-* Compute the **relative expression** across tissues for all the bilaterian-conserved, protein-coding genes of the 16 vertebrates and insect species included in our dataset.  
-* Compute average protein **sequence similarities** for each gene orthogroups, starting from all the all species-pairwise similarities between its representative orthologs.  
+##0_ALL_PAIRWISE_SIMILARITIES:  
+
+This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
+
+ * Compute the **relative expression** across tissues for all the bilaterian-conserved, protein-coding genes of the 16 vertebrates and insect species included in our dataset.  
+* Compute **all pairwise sequence similarities** between all possible pairs of genes (from different species) in an orthogroup.  
+* Compute **all pairwise expression similarities** between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression acrosss tissues.  
+
+##1_SEQ_AND_EXPR_SIM_ANALYSES:
+
+This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
+
+* Compute average protein **sequence similarities** for each gene orthogroups, starting from all the all species-pairwise similarities between its representative orthologs.
 * Compute pairwise and average **expression similarities** for each gene orthogroups, starting from the relative expression across tissues of all its representative orthologs.  
-* Compute pairwise and average spearman **expression correlation** for each gene orthogroups, starting from the relative expression across tissues of all its representative orthologs. 
-* Compute pairwise and average **expression euclidean distances** for each gene orthogroups, starting from the relative expression across tissues of all its representative orthologs. 
 * Define groups containing **500 most and least conserved gene orthogroups** in terms of sequence or expression similarities between either vertebrates or insects.  
-* Perform **GO enrichments** on the previously defined groups. Background is represented by all bilaterian-conserved gene orthogroups.  
+* Generate inputs for **GO enrichments** of common lowly or highly diversified genes (see Fig.4 from Figures/All_Figures.Rmd).  
+
+##2_PARALOGOUS_SETS_SELECTION:
+This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
+
+* Compute **z-scores** of the average sequence or expression similarity per orthogroup and clade computed in *Analyses/2_PARALOGOUS_SETS_SELECTION*.  
+* Select all extra paralogous sets (**BA-seq, BD-seq, BA-expr, BD-exr**) based on the most extreme similarity values across orthogroups: the highest for BA sets (Best-Ancestral) and the lowest for BD sets (Best-Divergent).  
+* Define vertebrate housekeeping genes.  
+
+##3_ALTERNATIVE_EXPR_METRICS:  
+
+This folder contains snakemake pipeline a (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
+
+* Compute **all pairwise expression correlations** (spearman's rho) between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression across tissues.  
+* Compute **all pairwise expression distances** (euclidean distance) between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression across tissues.  
+* NB: the rule used to compute **average expression correlations or distance** (spearman's rho or euclidean distance, respectively) for each gene orthogroup in vertebrates and insects is present in the snakemake pipeline *Analyses/2_PARALOGOUS_SETS_SELECTION*
 
 ### Figures
 
-This folder contains an Rmarkdown file used to generate the majority of the figure panels associated with the publication, and perfomer very few of the less demanding computational analyses. The content includes:  
+This folder contains an Rmarkdown file used to generate the majority of the figure panels associated with the publication, and perform very few of the less demanding computational analyses. The content includes:  
 
 * **Figure 1**: Framework overview and definition of sequence and expression similarities.  
 * **Figure 2**: Correlation of sequence and expression similarities between and within clades.  
@@ -42,3 +66,4 @@ This folder contains an Rmarkdown file used to generate the majority of the figu
 * **Figure 5**: Functional categories with molecular diversification biases between clades.   
 * **Supplementary Figure 1**: Comparison between measures of expression conservation.  
 * **Supplementary Figure 2**: Deltas of sequence and expression similarities between vertebrates and insects.  
+* **Supplementary Figure 3-6**: Key results repeated with extra paralogous sets (BA-seq, BD-seq, BA-expr, BD-expr).   
