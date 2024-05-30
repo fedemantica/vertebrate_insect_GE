@@ -43,9 +43,6 @@ else:
   BATCH_NUMBER = 1
 
 ###### targets ##########
-BATCH_PAIRWISE_EXPR_SIM = expand("{path}/pairwise_expression_similarities/batch_{batch_number}-expression_similarities.tab", path=PARALOG_SETS_DIR, batch_number=BATCH_NUMBER)
-ALL_PAIRWISE_EXPR_SIM = PARALOG_SETS_DIR+"/pairwise_expression_similarities/all_pairwise_expression_similarities.txt"
-ALL_PAIRWISE_SEQ_SIM = PARALOG_SETS_DIR+"/pairwise_sequence_similarities/all_pairwise_sequence_similarities.txt"
 ALL_SIM_SCORES = PARALOG_SETS_DIR+"/selected_paralog_sets/all_seq_expr_scores.tab"
 DEFINE_PARALOG_SETS = expand("{path}/selected_paralog_sets_v1/Bilateria_conserved-{paralog_type}_genes.txt", path=PARALOG_SETS_DIR, paralog_type=PARALOG_TYPES)
 SPECIES_AVERAGE_SIMILARITIES = expand("{path}/pairwise_{measure}/average_{measure}_by_species.txt", path=PARALOG_SETS_DIR, measure=MY_MEASURES)
@@ -54,130 +51,10 @@ VERT_HOUSEKEEPING_OGS = expand("{path}/Housekeeping_vertebrata-{paralog_type}-Ta
 ####### rules ############
 rule all:	
 	input:
-		VERT_HOUSEKEEPING_OGS	
-		#SPECIES_AVERAGE_SIMILARITIES
-		#DEFINE_PARALOG_SETS
+		#VERT_HOUSEKEEPING_OGS	
+		SPECIES_AVERAGE_SIMILARITIES
+		DEFINE_PARALOG_SETS
 		#ALL_SIM_SCORES
-		#ALL_PAIRWISE_SEQ_SIM,
-		#ALL_PAIRWISE_EXPR_SIM
-
-#######################################################
-###### EXPRESSION PROPORTIONS WITHOUT ADIPOSE #########
-#######################################################
-
-rule compute_relative_expression:
-	input:
-		ORIGINAL_REL_EXPR_DIR+"/{species}-protein_coding-tissue_average_expr-NOSVA-log2-TPMs-NORM.tab"
-	output:
-		REL_EXPR_DIR+"/{species}-protein_coding_relative_ts.tab"
-	shell:
-		"""
-		python {COMPUTE_REL_EXPR}	--input {input} \
-						--output {output}
-		"""
-
-
-#######################################################
-###### COMPUTE PAIRWISE EXPRESSION SIMILARITY #########
-#######################################################
-
-rule split_orthogroups:
-	input:
-		GENE_SETS_DIR+"/All_version2/STRICT/Bilateria/conserved/Bilateria_conserved_orthogroups-EXPR_genes.txt"
-	output:
-		PARALOG_SETS_DIR+"/orthogroups_batches/orthogroups_batch_1.txt"
-	params:
-		output_dir = PARALOG_SETS_DIR+"/orthogroups_batches/",
-		considered_species = VERTEBRATA+INSECTA
-	run:
-		import pandas as pd
-
-		OG_df = pd.read_table(str(input), sep="\t", index_col=False, header=None, names=["OG_ID", "Species", "GeneID"])
-		###### Remove entries corresponding to outgroups
-		OG_df = OG_df.loc[OG_df["Species"].isin(params.considered_species)]
-		OG_ID_list = list(set(list(OG_df["OG_ID"]))) #Get a list of all OG_IDs
-		OG_ID_list.sort() #Order list, so that the batches will be comparable between runs.
-		element_num = 10
-		OG_ID_batches = [OG_ID_list[i:i+element_num] for i in range(0, len(OG_ID_list), element_num)] #Create batches of 10 orthogroups
-		group_num = 1
-		for batch in OG_ID_batches:
-		  batch_df = OG_df.loc[OG_df["OG_ID"].isin(batch)]
-		  batch_df.to_csv(params.output_dir+"/orthogroups_batch_"+str(group_num)+".txt", sep="\t", index=False, header=False, na_rep="NA")
-		  group_num = group_num + 1
-
-rule get_batch_number:
-	input:
-		PARALOG_SETS_DIR+"/orthogroups_batches/orthogroups_batch_1.txt"
-	output:
-		PARALOG_SETS_DIR+"/orthogroups_batches/batches_number.txt"
-	params:
-		output_dir = PARALOG_SETS_DIR+"/orthogroups_batches"
-	shell:
-		"""
-		ls {params.output_dir} | grep orthogroups_batch | wc -l > {output}
-		"""
-
-### See at the beginning of the Snakefile for the definition of batch number
-rule compute_pairwise_expr_sim:
-	input:
-		orthogroups = PARALOG_SETS_DIR+"/orthogroups_batches/orthogroups_batch_{batch_number}.txt",
-		rel_expr_files = expand(REL_EXPR_DIR+"/{species}-protein_coding_relative_ts.tab", species=VERTEBRATA+[species if species != "BmA" else "Bmo" for species in INSECTA])
-	output:
-		PARALOG_SETS_DIR+"/pairwise_expression_similarities/batch_{batch_number}-expression_similarities.tab"
-	params:
-		expr_table_dir = REL_EXPR_DIR,
-		expr_file_suffix = "-protein_coding_relative_ts.tab",
-		clade_species = ",".join(VERTEBRATA+[species if species != "BmA" else "Bmo" for species in INSECTA]),
-		tissues = ",".join(ALL_TISSUES),
-	shell:
-		"""
-		python {COMPUTE_PAIRWISE_EXPR_SIM}	--orthogroups {input.orthogroups} \
-							--expr_table_dir {params.expr_table_dir} \
-							--expr_file_suffix="{params.expr_file_suffix}" \
-							--clade_species "{params.clade_species}" \
-							--tissues "{params.tissues}" \
-							--output {output}
-		"""
-
-rule join_pairwise_expr_similarities:
-	input:
-		expand("{path}/pairwise_expression_similarities/batch_{batch_number}-expression_similarities.tab", path=PARALOG_SETS_DIR, batch_number=BATCH_NUMBER)
-	output:
-		PARALOG_SETS_DIR+"/pairwise_expression_similarities/all_pairwise_expression_similarities.txt"
-	params:
-		input_dir = PARALOG_SETS_DIR+"/pairwise_expression_similarities"
-	shell:
-		"""
-		cat {params.input_dir}/batch_*-expression_similarities.tab > {output}	
-		"""
-
-#######################################################
-###### ADJUST PAIRWISE SEQUENCE SIMILARITIES ##########
-#######################################################
-
-rule adjust_pairwise_seq_similarities:
-	input:
-		pairwise_seq_sim = "/users/mirimia/fmantica/projects/bilaterian_GE/data/gene_sets/All_version2/sequence_similarities/all_pairwise_sequence_similarities.txt",
-		orthogroups = GENE_SETS_DIR+"/All_version2/STRICT/Bilateria/conserved/Bilateria_conserved_orthogroups-EXPR_genes.txt"
-	output:
-		PARALOG_SETS_DIR+"/pairwise_sequence_similarities/all_pairwise_sequence_similarities.txt"
-	params:
-		considered_species = VERTEBRATA+INSECTA
-	run:
-		import pandas as pd
-
-		#### Upload inputs
-		pairwise_seq_sim_df = pd.read_table(str(input.pairwise_seq_sim), sep="\t", index_col=False, header=None, names=["OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", "Seq_sim"])
-		orthogroups_df = pd.read_table(str(input.orthogroups), sep="\t", index_col=False, header=None, names=["OG_ID", "Species", "GeneID"])
-		#### Remove outgroups
-		pairwise_seq_sim_df = pairwise_seq_sim_df.loc[(pairwise_seq_sim_df["Species1"].isin(params.considered_species)) & (pairwise_seq_sim_df["Species2"].isin(params.considered_species))]
-		#### Update Species1 and Species2 to match gene order
-		geneID_species_dict = pd.Series(orthogroups_df.Species.values, index=orthogroups_df.GeneID).to_dict()
-		pairwise_seq_sim_df["Species1"] = pairwise_seq_sim_df["GeneID1"].map(geneID_species_dict)
-		pairwise_seq_sim_df["Species2"] = pairwise_seq_sim_df["GeneID2"].map(geneID_species_dict)		
-		#### Save to file
-		pairwise_seq_sim_df.to_csv(str(output), sep="\t", index=False, header=False, na_rep="NA")
-
 
 #######################################################
 ###### TRANSFORMATIONS FOR PARALOG SELECTION ##########
@@ -234,43 +111,6 @@ rule sum_seq_expr_zscores_by_gene:
 		#### Save to output
 		combined_df.to_csv(str(output), sep="\t", index=False, header=True, na_rep="NA")
 		
-########## DIVIDED BY MAX VALUE
-rule max_norm_measures_by_species:
-	input:
-		PARALOG_SETS_DIR+"/pairwise_{measure}_similarities/average_{measure}_similarities_by_gene.txt"
-	output:
-		PARALOG_SETS_DIR+"/pairwise_{measure}_similarities/average_{measure}_similarities_by_gene-maxnorm_by_species.txt"
-	run:
-		import pandas as pd
-
-		#### Define function
-		zscore = lambda x: x / x.max()
-		#### Upload input
-		average_similarity_df = pd.read_table(str(input), sep="\t", index_col=False, header=None, names=["OG_ID", "Species", "GeneID", "Sim_value"])
-		#### Add zscore column
-		average_similarity_df.insert(4, "Zscore", average_similarity_df.groupby("Species")["Sim_value"].transform(zscore))
-		#### Save to output		
-		average_similarity_df.to_csv(str(output), sep="\t", index=False, header=False, na_rep="NA")
-
-#The column name correspond to the zscore version for simplicity for now
-rule sum_seq_expr_max_norm_by_gene:
-	input:
-		sequence_similarities = PARALOG_SETS_DIR+"/pairwise_sequence_similarities/average_sequence_similarities_by_gene-maxnorm_by_species.txt",
-		expression_similarities = PARALOG_SETS_DIR+"/pairwise_expression_similarities/average_expression_similarities_by_gene-maxnorm_by_species.txt"
-	output:
-		PARALOG_SETS_DIR+"/selected_paralog_sets_v1/all_seq_expr_scores.tab"
-	run:	
-		import pandas as pd
-
-		#### Upload input
-		seq_sim_df = pd.read_table(str(input.sequence_similarities), sep="\t", index_col=False, header=None, names=["OG_ID", "Species", "GeneID", "Seq_sim", "Seq_zscore"])
-		expr_sim_df = pd.read_table(str(input.expression_similarities), sep="\t", index_col=False, header=None, names=["OG_ID", "Species", "GeneID", "Expr_sim", "Expr_zscore"])
-		#### Combine dataframes
-		combined_df = pd.merge(seq_sim_df, expr_sim_df, on=["OG_ID", "Species", "GeneID"])
-		combined_df["Summed_zscore"] = combined_df["Seq_zscore"]+combined_df["Expr_zscore"]
-		#### Save to output
-		combined_df.to_csv(str(output), sep="\t", index=False, header=True, na_rep="NA")
-
 
 #######################################################
 ################ SELECT PARALOGS ######################
