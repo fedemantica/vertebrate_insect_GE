@@ -1,4 +1,4 @@
-# Sequence and Expression Divergence of Ancestral Genes in Vertebrates and Insects
+# Sequence and Expression Diversification of Ancestral Genes in Vertebrates and Insects
 
 This github repository contains the code use to perform the analyses and generate the figures associated with the manuscript titled **"Sequence and Expression Divergence of Ancestral Genes in Vertebrates and Insects"** by Federica Mantica and Manuel Irimia (submitted for publication).
 
@@ -6,6 +6,10 @@ Table of contents
 -------
 * [Study Overview](#study-overview)  
 * [Analyses](#analyses)  
+  + [All pairwise similarities ](#all-pairwise-similarities)
+  + [Seq and expr sim analyses](#seq-and-expr-sim-analyses)
+  + [Paralogous sets selection](#paralogous-sets-selection)
+  + [Alternative expr metrics](#alternative-expr-metrics)
 * [Figures](#figures)  
 
 ### Study Overview 
@@ -19,20 +23,20 @@ Vertebrates and insects diverged approximately 700 million years ago, and yet th
   <figcaption><b>Framework overview and definition of sequence and expression similarities.</b> a. Left: phylogenetic tree including the scientific acronyms of the 8 vertebrate and 8 insect species considered in this study. Hsa: human, Mmu: mouse, Bta: cow, Mdo: opossum, Gga: chicken, Xtr: tropical clawed frog, Dre: zebrafish, Cmi: elephant shark. Dme: fruit fly, Eba: marmalade hoverfly, Aae: yellow fever mosquito, Bmo: domestic silk moth, Tca: red flour beetle, Ame: honey bee, Bge: cockroach, Cdi: mayfly. (see Methods for corresponding scientific names). Top right: example of one the 6,787 considered gene orthogroups. Bottom right: tissues represented in our bulk RNA-seq dataset. Evolutionary distances were derived from timetree (Kumar et al. 2022) (MYA: million years ago) and animal silhouettes were generated through Bing Chat by MIcrosoft (2023) https://www.bing.com/search. b, c. Scheme for the computation of the sequence (b) and expression (c) similarity measures. The depicted procedure was performed separately for vertebrates and insects, returning two values per orthogroup. d, e. Distributions of the sequence (d) and expression (e) similarity values for all gene orthogroups (n=6,788) within vertebrates (purple) and insects (orange).</figcaption>
 <figure>
 
+<br>
+
 ### Analyses  
 
 This folder contains 4 subfolders, each containing a different snakemake pipeline and relative files.   
 
-##0_ALL_PAIRWISE_SIMILARITIES:  
-
+#### All pairwise similarities 
 This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
 
  * Compute the **relative expression** across tissues for all the bilaterian-conserved, protein-coding genes of the 16 vertebrates and insect species included in our dataset.  
 * Compute **all pairwise sequence similarities** between all possible pairs of genes (from different species) in an orthogroup.  
 * Compute **all pairwise expression similarities** between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression acrosss tissues.  
 
-##1_SEQ_AND_EXPR_SIM_ANALYSES:
-
+#### Seq and expr sim analyses
 This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
 
 * Compute average protein **sequence similarities** for each gene orthogroups, starting from all the all species-pairwise similarities between its representative orthologs.
@@ -40,20 +44,22 @@ This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the ma
 * Define groups containing **500 most and least conserved gene orthogroups** in terms of sequence or expression similarities between either vertebrates or insects.  
 * Generate inputs for **GO enrichments** of common lowly or highly diversified genes (see Fig.4 from Figures/All_Figures.Rmd).  
 
-##2_PARALOGOUS_SETS_SELECTION:
+#### Paralogous sets selection
 This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
 
-* Compute **z-scores** of the average sequence or expression similarity per orthogroup and clade computed in *Analyses/2_PARALOGOUS_SETS_SELECTION*.  
+* Compute **z-scores** of the average sequence or expression similarity per orthogroup and clade computed in Analyses/2_PARALOGOUS_SETS_SELECTION.  
 * Select all extra paralogous sets (**BA-seq, BD-seq, BA-expr, BD-exr**) based on the most extreme similarity values across orthogroups: the highest for BA sets (Best-Ancestral) and the lowest for BD sets (Best-Divergent).  
 * Define vertebrate housekeeping genes.  
 
-##3_ALTERNATIVE_EXPR_METRICS:  
+#### Alternative expr metrics  
 
 This folder contains snakemake pipeline a (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
 
 * Compute **all pairwise expression correlations** (spearman's rho) between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression across tissues.  
 * Compute **all pairwise expression distances** (euclidean distance) between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression across tissues.  
-* NB: the rule used to compute **average expression correlations or distance** (spearman's rho or euclidean distance, respectively) for each gene orthogroup in vertebrates and insects is present in the snakemake pipeline *Analyses/2_PARALOGOUS_SETS_SELECTION*
+* NB: the rule used to compute **average expression correlations or distance** (spearman's rho or euclidean distance, respectively) for each gene orthogroup in vertebrates and insects is present in the snakemake pipeline Analyses/2_PARALOGOUS_SETS_SELECTION.
+
+<br>
 
 ### Figures
 
