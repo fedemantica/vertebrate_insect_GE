@@ -71,4 +71,5 @@ This folder contains an Rmarkdown file used to generate the majority of the figu
 * **Figure 5**: Functional categories with molecular diversification biases between clades.   
 * **Supplementary Figure 1**: Comparison between measures of expression conservation.  
 * **Supplementary Figure 2**: Deltas of sequence and expression similarities between vertebrates and insects.  
-* **Supplementary Figure 3-6**: Key results repeated with extra paralogous sets (BA-seq, BD-seq, BA-expr, BD-expr).   
+* **Supplementary Figure 3**: Schematics for sequence/expression similarity computations and paralogous sets selection.  
+* **Supplementary Figure 4-6**: Key results repeated with extra paralogous sets (BA-seq, BD-seq, BA-expr, BD-expr).   
