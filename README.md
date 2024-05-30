@@ -1,6 +1,6 @@
 # Sequence and Expression Diversification of Ancestral Genes in Vertebrates and Insects
 
-This github repository contains the code use to perform the analyses and generate the figures associated with the manuscript titled **"Sequence and Expression Divergence of Ancestral Genes in Vertebrates and Insects"** by Federica Mantica and Manuel Irimia (submitted for publication).
+This github repository contains the code use to perform the analyses and generate the figures associated with the manuscript titled **"Sequence and Expression Diversification of Ancestral Genes in Vertebrates and Insects"** by Federica Mantica and Manuel Irimia (submitted for publication).
 
 Table of contents
 -------
