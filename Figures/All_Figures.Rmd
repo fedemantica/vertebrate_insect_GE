@@ -488,6 +488,144 @@ dev.off()
 ```
 
 <!-- Panel B -->
+```{r lethal_phenotypes_distribs, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=6, fig.height=5}
+#### The idea is to see if the most/least conserved genes are associated with lethal phenotypes, developmental defects or other types of illness
+#### I would expect the most conserved to be lethal, and the least conserved to be associated with "milder" phenotypes
+
+##############################################
+######## EVOLVING GROUP ######################
+##############################################
+
+gene_number = 500
+conservation_status = c("most_conserved", "least_conserved")
+clades = c("vertebrata", "insecta")
+features = c("sequence_similarities", "expression_similarities")
+
+all_features_clade_conservation_df = data.frame()
+for (status in conservation_status) {
+  for (clade in clades) {
+    for (feature in features) {
+      input_file = paste0(general_patterns_dir, paralog_type, "/", feature, "/GO_enrichments/", feature, "-", gene_number, "_", clade, "_", status, "-", paralog_type, "_genes-GO_input.tab")
+      input_df = read.delim(input_file, header=FALSE, col.names=c("OG_ID")) %>%
+        mutate(Conservation=status,
+               Clade=clade,
+               Feature=feature)
+      #### Join to the final dataframe
+      all_features_clade_conservation_df = dplyr::bind_rows(all_features_clade_conservation_df, input_df)
+    }
+  }
+}
+
+################################################
+########### PHENOTYPES #########################
+################################################
+
+phenotype_file = "/users/mirimia/fmantica/projects/bilaterian_GE/data/splsda_analysis/All_version2/STRICT/Bilateria/conserved/phenotype_overlap/all_species-Bilateria_conserved-OG_ID-phenotypic_info.tab"
+phenotype_df = read.delim(phenotype_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID", "Phenotype"))
+
+### Filter only for mouse and fly and add lethal category
+phenotype_annot_df = phenotype_df %>%
+  mutate(Label = ifelse(grepl("lethal", Phenotype, ignore.case=TRUE), "Lethal", "Not_lethal")) %>%
+  mutate(Label = ifelse(grepl("_die_", Phenotype, ignore.case=TRUE), "Lethal", Label)) %>%
+  select(OG_ID, Species, GeneID, Label) %>%
+  distinct() %>%
+  mutate(Clade = ifelse(Species=="Dme", "insecta", "vertebrata"))
+
+### Filter only for the genes that are actually in the best-ancestrals (i.e., not looking at paralogs)
+orthogroup_file = paste0(paralog_sets_dir, "/selected_paralog_sets/Bilateria_conserved-", paralog_type, "_genes.txt")
+orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
+### This is redundant if we are using all genes, but I am keeping it to run the code with the selected paralog sets
+selected_genes = as.vector(orthogroups_df$GeneID)
+selected_phenotype_annot_df = phenotype_annot_df %>%
+  filter(GeneID %in% selected_genes) %>%
+  select(OG_ID, Clade, Label) %>%
+  distinct() %>%
+  group_by(OG_ID, Clade) %>%
+  summarize(Lethal_phenotype = ifelse(n()>1, "Lethal", Label))
+
+
+################################################
+########### COMBINE INFO #######################
+################################################
+all_features_clade_conservation_phenotypes_df = all_features_clade_conservation_df %>%
+  left_join(selected_phenotype_annot_df, by=c("OG_ID", "Clade")) %>%
+  mutate(Lethal_phenotype = ifelse(is.na(Lethal_phenotype), "Uncharacterized", Lethal_phenotype))
+
+################################################
+########### ADD BACKGROUND #####################
+################################################
+background_phenotypes_df = orthogroups_df %>%
+  select(OG_ID) %>%
+  distinct() %>%
+  mutate(Clade = "vertebrata") %>%
+  dplyr::bind_rows(orthogroups_df %>%
+  select(OG_ID) %>%
+  distinct() %>%
+  mutate(Clade = "insecta"))
+  
+background_phenotypes_df = background_phenotypes_df %>%
+  left_join(selected_phenotype_annot_df, by=c("OG_ID", "Clade")) %>%
+  mutate(Lethal_phenotype = ifelse(is.na(Lethal_phenotype), "Uncharacterized", Lethal_phenotype),
+         Conservation = "background")
+
+all_features_clade_conservation_phenotypes_BACK_df = all_features_clade_conservation_phenotypes_df %>%
+  dplyr::bind_rows(background_phenotypes_df %>%
+                     mutate(Feature = "sequence_similarities") %>%
+                     select(OG_ID, Conservation, Clade, Feature, Lethal_phenotype)) %>%
+  dplyr::bind_rows(background_phenotypes_df %>%
+                     mutate(Feature = "expression_similarities") %>%
+                     select(OG_ID, Conservation, Clade, Feature, Lethal_phenotype)) %>%
+  mutate(Lethal_phenotype = factor(Lethal_phenotype, levels=rev(c("Lethal", "Not_lethal", "Uncharacterized"))),
+         Clade = factor(Clade, levels=c("vertebrata", "insecta")),
+         Conservation = factor(Conservation, levels=c("least_conserved", "background", "most_conserved")),
+         Feature = factor(Feature, levels=c("sequence_similarities", "expression_similarities")))
+  
+
+################################################
+########### PLOT ###############################
+################################################
+lethal_phenotype_status_plot = ggplot(data=all_features_clade_conservation_phenotypes_BACK_df, aes(x=Conservation, fill=Lethal_phenotype)) +
+  geom_bar(stat="count", position = position_fill(), color="black", size=0.2, alpha=1) +
+  scale_fill_brewer(palette="Oranges") +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text.y = element_text(color="black"),
+        axis.text.x = element_text(color="black"),
+        legend.position = "top"
+        ) +
+  scale_x_discrete(labels=c("Fast", "All", "Slow")) +
+  facet_grid(Feature ~ Clade)
+
+print(lethal_phenotype_status_plot)
+
+##############################################
+######## STATISTICS ##########################
+##############################################
+statistics_input_df = all_features_clade_conservation_phenotypes_BACK_df %>% 
+  group_by(Conservation, Clade, Feature, Lethal_phenotype) %>% 
+  summarize(Tot=n()) %>%
+  ungroup()
+
+for (my_clade in c("vertebrata", "insecta")) {
+  for (my_conservation in c("least_conserved", "most_conserved")) {
+    for (my_feature in c("sequence_similarities", "expression_similarities")) {
+      #### Build inputs
+      contingency_table = statistics_input_df %>%
+        filter(Clade==my_clade, Conservation %in% c(my_conservation, "background"), Feature==my_feature) %>%
+        dplyr::select(Lethal_phenotype, Conservation, Tot) %>%
+        pivot_wider(names_from="Conservation", , values_from=c("Tot"), values_fill=0) %>%
+        column_to_rownames("Lethal_phenotype")
+      #### Perform fisher tests
+      if (my_conservation == "least_conserved") {my_alternative = "less"} else {my_alternative = "greater"}
+      print(paste0(my_clade, " ", my_conservation, " ", my_feature))
+      print(contingency_table)
+      print(fisher.test(contingency_table, simulate.p.value = TRUE, alternative=my_alternative))
+    }
+  }
+}
+```
+
+<!-- Panel C -->
 ```{r duplication_status, warning=FALSE, echo=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=6, fig.height=5}
 ### This will be a stacked barplot with the number of species with duplications (from 1 to 8) in the relative clade in each group
 ### I will pair highly/lowly diversified for each feature and each clade
@@ -630,7 +768,7 @@ for (my_clade in c("vertebrata", "insecta")) {
 }
 ```
 
-<!-- Panel C -->
+<!-- Panel D -->
 ```{r taus_distribs, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=6, fig.height=5}
 ##############################################
 ######## EVOLVING GROUP ######################
@@ -727,144 +865,6 @@ for (my_clade in c("vertebrata", "insecta")) {
       if (my_conservation == "least_conserved") {my_alternative = "greater"} else {my_alternative = "less"}
       print(wilcox.test(as.vector(subset(wilcox_input_df, Conservation==my_conservation)$Tau), as.vector(subset(wilcox_input_df, Conservation=="background")$Tau),
                           alternative=my_alternative))
-    }
-  }
-}
-```
-
-<!-- Panel D -->
-```{r lethal_phenotypes_distribs, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=6, fig.height=5}
-#### The idea is to see if the most/least conserved genes are associated with lethal phenotypes, developmental defects or other types of illness
-#### I would expect the most conserved to be lethal, and the least conserved to be associated with "milder" phenotypes
-
-##############################################
-######## EVOLVING GROUP ######################
-##############################################
-
-gene_number = 500
-conservation_status = c("most_conserved", "least_conserved")
-clades = c("vertebrata", "insecta")
-features = c("sequence_similarities", "expression_similarities")
-
-all_features_clade_conservation_df = data.frame()
-for (status in conservation_status) {
-  for (clade in clades) {
-    for (feature in features) {
-      input_file = paste0(general_patterns_dir, paralog_type, "/", feature, "/GO_enrichments/", feature, "-", gene_number, "_", clade, "_", status, "-", paralog_type, "_genes-GO_input.tab")
-      input_df = read.delim(input_file, header=FALSE, col.names=c("OG_ID")) %>%
-        mutate(Conservation=status,
-               Clade=clade,
-               Feature=feature)
-      #### Join to the final dataframe
-      all_features_clade_conservation_df = dplyr::bind_rows(all_features_clade_conservation_df, input_df)
-    }
-  }
-}
-
-################################################
-########### PHENOTYPES #########################
-################################################
-
-phenotype_file = "/users/mirimia/fmantica/projects/bilaterian_GE/data/splsda_analysis/All_version2/STRICT/Bilateria/conserved/phenotype_overlap/all_species-Bilateria_conserved-OG_ID-phenotypic_info.tab"
-phenotype_df = read.delim(phenotype_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID", "Phenotype"))
-
-### Filter only for mouse and fly and add lethal category
-phenotype_annot_df = phenotype_df %>%
-  mutate(Label = ifelse(grepl("lethal", Phenotype, ignore.case=TRUE), "Lethal", "Not_lethal")) %>%
-  mutate(Label = ifelse(grepl("_die_", Phenotype, ignore.case=TRUE), "Lethal", Label)) %>%
-  select(OG_ID, Species, GeneID, Label) %>%
-  distinct() %>%
-  mutate(Clade = ifelse(Species=="Dme", "insecta", "vertebrata"))
-
-### Filter only for the genes that are actually in the best-ancestrals (i.e., not looking at paralogs)
-orthogroup_file = paste0(paralog_sets_dir, "/selected_paralog_sets/Bilateria_conserved-ALL_genes.txt")
-orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
-### This is redundant if we are using all genes, but I am keeping it to run the code with the selected paralog sets
-selected_genes = as.vector(orthogroups_df$GeneID)
-selected_phenotype_annot_df = phenotype_annot_df %>%
-  filter(GeneID %in% selected_genes) %>%
-  select(OG_ID, Clade, Label) %>%
-  distinct() %>%
-  group_by(OG_ID, Clade) %>%
-  summarize(Lethal_phenotype = ifelse(n()>1, "Lethal", Label))
-
-
-################################################
-########### COMBINE INFO #######################
-################################################
-all_features_clade_conservation_phenotypes_df = all_features_clade_conservation_df %>%
-  left_join(selected_phenotype_annot_df, by=c("OG_ID", "Clade")) %>%
-  mutate(Lethal_phenotype = ifelse(is.na(Lethal_phenotype), "Uncharacterized", Lethal_phenotype))
-
-################################################
-########### ADD BACKGROUND #####################
-################################################
-background_phenotypes_df = orthogroups_df %>%
-  select(OG_ID) %>%
-  distinct() %>%
-  mutate(Clade = "vertebrata") %>%
-  dplyr::bind_rows(orthogroups_df %>%
-  select(OG_ID) %>%
-  distinct() %>%
-  mutate(Clade = "insecta"))
-  
-background_phenotypes_df = background_phenotypes_df %>%
-  left_join(selected_phenotype_annot_df, by=c("OG_ID", "Clade")) %>%
-  mutate(Lethal_phenotype = ifelse(is.na(Lethal_phenotype), "Uncharacterized", Lethal_phenotype),
-         Conservation = "background")
-
-all_features_clade_conservation_phenotypes_BACK_df = all_features_clade_conservation_phenotypes_df %>%
-  dplyr::bind_rows(background_phenotypes_df %>%
-                     mutate(Feature = "sequence_similarities") %>%
-                     select(OG_ID, Conservation, Clade, Feature, Lethal_phenotype)) %>%
-  dplyr::bind_rows(background_phenotypes_df %>%
-                     mutate(Feature = "expression_similarities") %>%
-                     select(OG_ID, Conservation, Clade, Feature, Lethal_phenotype)) %>%
-  mutate(Lethal_phenotype = factor(Lethal_phenotype, levels=rev(c("Lethal", "Not_lethal", "Uncharacterized"))),
-         Clade = factor(Clade, levels=c("vertebrata", "insecta")),
-         Conservation = factor(Conservation, levels=c("least_conserved", "background", "most_conserved")),
-         Feature = factor(Feature, levels=c("sequence_similarities", "expression_similarities")))
-  
-
-################################################
-########### PLOT ###############################
-################################################
-lethal_phenotype_status_plot = ggplot(data=all_features_clade_conservation_phenotypes_BACK_df, aes(x=Conservation, fill=Lethal_phenotype)) +
-  geom_bar(stat="count", position = position_fill(), color="black", size=0.2, alpha=1) +
-  scale_fill_brewer(palette="Oranges") +
-  theme_bw() +
-  theme(axis.title = element_text(color="black"),
-        axis.text.y = element_text(color="black"),
-        axis.text.x = element_text(color="black"),
-        legend.position = "top"
-        ) +
-  scale_x_discrete(labels=c("Fast", "All", "Slow")) +
-  facet_grid(Feature ~ Clade)
-
-print(lethal_phenotype_status_plot)
-
-##############################################
-######## STATISTICS ##########################
-##############################################
-statistics_input_df = all_features_clade_conservation_phenotypes_BACK_df %>% 
-  group_by(Conservation, Clade, Feature, Lethal_phenotype) %>% 
-  summarize(Tot=n()) %>%
-  ungroup()
-
-for (my_clade in c("vertebrata", "insecta")) {
-  for (my_conservation in c("least_conserved", "most_conserved")) {
-    for (my_feature in c("sequence_similarities", "expression_similarities")) {
-      #### Build inputs
-      contingency_table = statistics_input_df %>%
-        filter(Clade==my_clade, Conservation %in% c(my_conservation, "background"), Feature==my_feature) %>%
-        dplyr::select(Lethal_phenotype, Conservation, Tot) %>%
-        pivot_wider(names_from="Conservation", , values_from=c("Tot"), values_fill=0) %>%
-        column_to_rownames("Lethal_phenotype")
-      #### Perform fisher tests
-      if (my_conservation == "least_conserved") {my_alternative = "less"} else {my_alternative = "greater"}
-      print(paste0(my_clade, " ", my_conservation, " ", my_feature))
-      print(contingency_table)
-      print(fisher.test(contingency_table, simulate.p.value = TRUE, alternative=my_alternative))
     }
   }
 }
@@ -1683,7 +1683,274 @@ dev.off()
 <!-- ########## Sup Figure 1 ######## -->
 <!-- ################################ -->
 
-<!-- Panel A: generated manually -->
+<!-- Panel A,B: manually generated -->
+
+<!-- Panel C -->
+```{r check_overlap_selected_groups, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.width=14, fig.height=6}
+##############################
+####### INPUT ################
+##############################
+extra_paralog_types = c("BA_seq", "BD_seq", "BA_expr", "BD_expr")
+
+all_paralog_types_list = list()
+for (paralog_type in extra_paralog_types) {
+  paralog_type_info_file = paste0(paralog_sets_dir, "selected_paralog_sets/Bilateria_conserved-", paralog_type, "_genes-extra_info.txt")
+  paralog_type_info_df = read.delim(paralog_type_info_file, header=TRUE, col.names=c("OG_ID", "Species",	"GeneID",	"Seq_sim", "Seq_zscore", "Expr_sim", "Expr_zscore", "Summed_zscore"))
+  all_paralog_types_list[[paralog_type]] = as.vector(paralog_type_info_df$GeneID)
+}
+
+
+##############################
+####### PLOT #################
+##############################
+
+upset(fromList(all_paralog_types_list), order.by = "freq", text.scale = c(1.5, 1.5, 1.5, 1.5, 1.5, 1.5), keep.order = TRUE, nsets = 6)
+
+pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/ALL_genes/SupFig1C-v2.pdf", width=17.5, height=8)
+print(upset(fromList(all_paralog_types_list), order.by = "freq", text.scale = c(1.5, 1.5, 1.5, 1.5, 1.5, 1.5), keep.order = TRUE, nsets = 6))
+dev.off()
+```
+
+
+<!-- ################################ -->
+<!-- ########## Sup Figure 2 ######## -->
+<!-- ################################ -->
+
+<!-- Panel A,B -->
+```{r plot_delta_distributions, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions")}
+input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+
+features_delta_df = input_seq_sim_df %>%
+  inner_join(input_expr_sim_df, by="OG_ID") %>%
+  select(OG_ID, contains("delta")) %>%
+  mutate(Name = "Dummy_variable")
+
+#########################################
+######## SEQUENCE #######################
+#########################################
+
+sequence_similarity_deltas_plot = ggplot(data=features_delta_df, aes(x=sequence_similarities_delta)) +
+  geom_density(fill="#1C86EE33", color="black") +
+  theme_bw() +
+  theme(axis.text = element_text(color="black"),
+        axis.title = element_text(color="black"),
+        plot.title = element_text(color="black", face="bold", hjust=0.5),
+        panel.background = element_rect(fill = "#1C86EE33"),
+        aspect.ratio=1) +
+  xlab("Sequence similarity deltas (V-I)") +
+  ylab("Density")
+
+print(sequence_similarity_deltas_plot)
+
+#########################################
+######## EXPRESSION 3####################
+#########################################
+
+expression_similarity_deltas_plot = ggplot(data=features_delta_df, aes(x=expression_similarities_delta)) +
+  geom_density(fill="#43CD8033", color="black") +
+  theme_bw() +
+  theme(axis.text = element_text(color="black"),
+        axis.title = element_text(color="black"),
+        plot.title = element_text(color="black", face="bold", hjust=0.5),
+        panel.background = element_rect(fill = "#43CD8033"),
+        aspect.ratio=1) +
+  xlab("Expression similarity deltas (V-I)") +
+  ylab("Density")
+
+print(expression_similarity_deltas_plot)
+```
+
+<!-- Panel C -->
+```{r plot_delta_correlations, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "function")}
+input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+
+features_delta_df = input_seq_sim_df %>%
+  inner_join(input_expr_sim_df, by="OG_ID") %>%
+  select(OG_ID, contains("delta"))
+
+#### Get correlation between deltas ###
+correlations_df = features_delta_df %>%
+  summarize(Cor_coefficient = round(cor.test(sequence_similarities_delta, expression_similarities_delta)$estimate, 3),
+            Pvalue = round(cor.test(sequence_similarities_delta, expression_similarities_delta)$p.value, 3)) %>%
+  mutate(Label = paste0("Pearsons's cor: ", Cor_coefficient, "\nPvalue: ", Pvalue))
+
+#### Plot correlation between deltas
+features_delta_plot = ggplot(data=features_delta_df, aes(x=sequence_similarities_delta, y=expression_similarities_delta)) +
+  geom_hex(bins=100) +
+  geom_smooth(method="lm", color="firebrick1") +
+  scale_fill_viridis_c(option="plasma", limits=c(1,10), oob = scales::squish) + #Everything 15 or higher will be represented in the same color
+  annotation_custom(grobTree(textGrob(correlations_df$Label, x=0.05,  y=0.92, hjust=0), gp=gpar(fontsize=10))) +
+  theme_bw() +
+  theme(axis.text = element_text(color="black"),
+      axis.title = element_text(color="black"),
+      panel.grid = element_line(color="white"),
+      aspect.ratio = 1,
+      plot.title = element_text(color="black", face="bold", hjust=0.5, size=10),
+      legend.position = "right") +
+  coord_fixed() +
+  xlab("Sequence similarity deltas (V-I)") +
+  ylab("Expression similarity deltas (V-I)")
+
+print(features_delta_plot)
+```
+
+<!-- Panel D,E -->
+```{r plot_zscore_deltas_distributions, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions")}
+input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+
+features_delta_df = input_seq_sim_df %>%
+  inner_join(input_expr_sim_df, by="OG_ID") %>%
+  select(OG_ID, contains("delta"))
+
+zscore_features_delta_df = features_delta_df %>%
+  mutate(sequence_similarities_delta = (sequence_similarities_delta - mean(features_delta_df$sequence_similarities_delta))/sd(features_delta_df$sequence_similarities_delta),
+         expression_similarities_delta = (expression_similarities_delta - mean(features_delta_df$expression_similarities_delta))/sd(features_delta_df$expression_similarities_delta))
+
+#########################################
+######## SEQUENCE #######################
+#########################################
+
+zscored_sequence_similarity_deltas_plot = ggplot(data=zscore_features_delta_df, aes(x=sequence_similarities_delta)) +
+  geom_density(fill="#1C86EE33", color="black") +
+  theme_bw() +
+  theme(axis.text = element_text(color="black"),
+        axis.title = element_text(color="black"),
+        plot.title = element_text(color="black", face="bold", hjust=0.5),
+        panel.background = element_rect(fill = "#1C86EE33"),
+        aspect.ratio=1) +
+  xlab("Z-scored sequence similarity deltas (V-I)") +
+  ylab("Density")
+
+print(zscored_sequence_similarity_deltas_plot)
+
+#########################################
+######## EXPRESSION #####################
+#########################################
+
+zscored_expression_similarity_deltas_plot = ggplot(data=zscore_features_delta_df, aes(x=expression_similarities_delta)) +
+  geom_density(fill="#43CD8033", color="black") +
+  theme_bw() +
+  theme(axis.text = element_text(color="black"),
+        axis.title = element_text(color="black"),
+        plot.title = element_text(color="black", face="bold", hjust=0.5),
+        panel.background = element_rect(fill = "#43CD8033"),
+        aspect.ratio=1) +
+  xlab("Z-scored expression similarity deltas (V-I)") +
+  ylab("Density")
+
+print(zscored_expression_similarity_deltas_plot)
+```
+
+<!-- Panel F -->
+```{r plot_zscore_delta_correlations, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "function")}
+input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+
+features_delta_df = input_seq_sim_df %>%
+  inner_join(input_expr_sim_df, by="OG_ID") %>%
+  select(OG_ID, contains("delta"))
+
+zscore_features_delta_df = features_delta_df %>%
+  mutate(sequence_similarities_delta = (sequence_similarities_delta - mean(features_delta_df$sequence_similarities_delta))/sd(features_delta_df$sequence_similarities_delta),
+         expression_similarities_delta = (expression_similarities_delta - mean(features_delta_df$expression_similarities_delta))/sd(features_delta_df$expression_similarities_delta))
+
+#### Get correlation between deltas ###
+correlations_df = zscore_features_delta_df %>%
+  summarize(Cor_coefficient = round(cor.test(sequence_similarities_delta, expression_similarities_delta)$estimate, 3),
+            Pvalue = round(cor.test(sequence_similarities_delta, expression_similarities_delta)$p.value, 3)) %>%
+  mutate(Label = paste0("Pearsons's cor: ", Cor_coefficient, "\nPvalue: ", Pvalue))
+
+#### Plot correlation between deltas
+zscored_features_delta_plot = ggplot(data=zscore_features_delta_df, aes(x=sequence_similarities_delta, y=expression_similarities_delta)) +
+  geom_hex(bins=100) +
+  geom_smooth(method="lm", color="firebrick1") +
+  scale_fill_viridis_c(option="plasma", limits=c(1,10), oob = scales::squish) + #Everything 15 or higher will be represented in the same color
+  annotation_custom(grobTree(textGrob(correlations_df$Label, x=0.05,  y=0.92, hjust=0), gp=gpar(fontsize=10))) +
+  theme_bw() +
+  theme(axis.text = element_text(color="black"),
+      axis.title = element_text(color="black"),
+      panel.grid = element_line(color="white"),
+      aspect.ratio = 1,
+      plot.title = element_text(color="black", face="bold", hjust=0.5, size=10),
+      legend.position = "right") +
+  coord_fixed() +
+  xlab("Z-scored sequence similarity deltas (V-I)") +
+  ylab("Z-scored expression similarity deltas (V-I)")
+
+print(zscored_features_delta_plot)
+```
+
+<!-- Panel A,B,C -->
+```{r combine_panels_SupFig2, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.width=12, fig.height=10}
+first_row = plot_grid(sequence_similarity_deltas_plot, expression_similarity_deltas_plot, features_delta_plot, 
+                        ncol=3, axis="tb", rel_widths = c(0.84,0.84,1))
+
+second_row = plot_grid(zscored_sequence_similarity_deltas_plot, zscored_expression_similarity_deltas_plot, zscored_features_delta_plot, 
+                        ncol=3, axis="tb", rel_widths = c(0.84,0.84,1))
+
+final_plots = plot_grid(first_row, second_row, ncol=1)
+print(final_plots)
+
+####################
+first_column = plot_grid(sequence_similarity_deltas_plot, zscored_sequence_similarity_deltas_plot, ncol=1, align="v")
+second_column = plot_grid(expression_similarity_deltas_plot, zscored_expression_similarity_deltas_plot, ncol=1, align="v")
+third_column = plot_grid(features_delta_plot, zscored_features_delta_plot, ncol=1, align="v")
+
+final_plots = plot_grid(first_column, second_column, third_column, ncol=3, rel_widths = c(0.80,0.82,1), align="h")
+print(final_plots)
+
+pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/ALL_genes/SupFig2-v1.pdf", width=12, height=10)
+print(final_plots)
+dev.off()
+```
+
+<!-- ################################ -->
+<!-- ########## Sup Figure 3 ######## -->
+<!-- ################################ -->
+
+<!-- Panel A -->
+```{r compare_seq_cons_measures, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.height=5, fig.width=4}
+input_seq_sim_df = read.delim("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/phyloP_scores_v1/Hs2-ALL_genes-sequence_similarities.tab", header=FALSE,
+                              col.names=c("OG_ID", "GeneID", "sequence_similarities_vertebrata"))
+input_phastcons_df = read.delim("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/phyloP_scores_v1/Hs2-ALL_genes-phyloP_scores_average.tab", header=FALSE,
+                              col.names=c("OG_ID", "GeneID", "PhastCons_vertebrata"))
+
+sequence_measures_df = input_seq_sim_df %>%
+  dplyr::select("GeneID", "sequence_similarities_vertebrata") %>%
+  left_join(input_phastcons_df %>%
+              dplyr::select("GeneID", "PhastCons_vertebrata"), by="GeneID")
+
+sequence_measures_comparison_plot = ggplot(data=sequence_measures_df, aes(x=sequence_similarities_vertebrata, y=PhastCons_vertebrata)) +
+  geom_hex(bins=100) +
+  geom_smooth(method="lm", color="firebrick1") +
+  annotation_custom(grobTree(textGrob(paste0("Pearsons's cor: ", 
+                                             round(cor.test(sequence_measures_df$sequence_similarities_vertebrata, sequence_measures_df$PhastCons_vertebrata)$estimate, 3), 
+                                             "\nPvalue: ", 
+                                             round(cor.test(sequence_measures_df$sequence_similarities_vertebrata, sequence_measures_df$PhastCons_vertebrata)$p.value, 3)), 
+                                      x=0.05,  y=0.92, hjust=0), gp=gpar(fontsize=10))) +
+  scale_fill_viridis_c(limits=c(1,10), oob = scales::squish, option="viridis") + #Everything 15 or higher will be represented in the same color
+  theme_bw() +
+  theme(axis.text = element_text(color="black"),
+      axis.title = element_text(color="black"),
+      panel.grid = element_line(color="white"),
+      legend.position = "bottom",
+      plot.title = element_text(color="black", face="bold", hjust=0.5, size=10)) +
+  scale_y_continuous(limits=c(0,1)) +
+  scale_x_continuous(limits=c(0,1)) +
+  coord_fixed() +
+  xlab("Average seq sim with vertebrates in dataset") +
+  ylab("Average UCSC PhastCons with 100 vertebrates") +
+  ggtitle("All human genes")
+  
+print(sequence_measures_comparison_plot)
+
+pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/ALL_genes/PhastCons_panel-v4.pdf", width=4, height=5)
+print(sequence_measures_comparison_plot)
+dev.off()
+```
 
 <!-- Panel B,C -->
 ```{r expression_correlation_and_euclidean_distance_distribs, echo=FALSE, warning=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=8, fig.height=3}
@@ -2109,7 +2376,7 @@ print(second_row)
 ```
 
 <!-- Panel B,C,D,E,F,G,H,I,J,K,L combined -->
-```{r combine_plots_SupFig1, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=17, fig.height=16}
+```{r combine_plots_SupFig3, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=17, fig.height=16}
 first_row = ggpubr::ggarrange(NA, expr_cor_joint_plot, expr_dist_joint_plot, ncol=3, align = "hv")
 second_row = ggpubr::ggarrange(plotlist=list(HK_expr_sim_plot, HK_expr_cor_plot, HK_expr_dist_plot), 
                                ncol=3, common.legend=TRUE, legend="right", align = "hv")
@@ -2120,253 +2387,13 @@ fourth_row = ggpubr::ggarrange(plotlist=list(expr_dist_correlation_plot, expr_di
 
 
 #### Combine plots
-sup_fig1 = plot_grid(first_row, second_row, third_row, fourth_row, ncol=1, nrow=4, align="hv", rel_heights = c(0.5,0.5,1,1))
-print(sup_fig1)
+sup_fig3 = plot_grid(first_row, second_row, third_row, fourth_row, ncol=1, nrow=4, align="hv", rel_heights = c(0.5,0.5,1,1))
+print(sup_fig3)
 
 pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/ALL_genes/SupFig1-v1.pdf", width=17, height=16)
-print(sup_fig1)
+print(sup_fig3)
 dev.off()
 ```
-
-<!-- ################################ -->
-<!-- ########## Sup Figure 2 ######## -->
-<!-- ################################ -->
-
-<!-- Panel A,B -->
-```{r plot_delta_distributions, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions")}
-input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-
-features_delta_df = input_seq_sim_df %>%
-  inner_join(input_expr_sim_df, by="OG_ID") %>%
-  select(OG_ID, contains("delta")) %>%
-  mutate(Name = "Dummy_variable")
-
-#########################################
-######## SEQUENCE #######################
-#########################################
-
-sequence_similarity_deltas_plot = ggplot(data=features_delta_df, aes(x=sequence_similarities_delta)) +
-  geom_density(fill="#1C86EE33", color="black") +
-  theme_bw() +
-  theme(axis.text = element_text(color="black"),
-        axis.title = element_text(color="black"),
-        plot.title = element_text(color="black", face="bold", hjust=0.5),
-        panel.background = element_rect(fill = "#1C86EE33"),
-        aspect.ratio=1) +
-  xlab("Sequence similarity deltas (V-I)") +
-  ylab("Density")
-
-print(sequence_similarity_deltas_plot)
-
-#########################################
-######## EXPRESSION 3####################
-#########################################
-
-expression_similarity_deltas_plot = ggplot(data=features_delta_df, aes(x=expression_similarities_delta)) +
-  geom_density(fill="#43CD8033", color="black") +
-  theme_bw() +
-  theme(axis.text = element_text(color="black"),
-        axis.title = element_text(color="black"),
-        plot.title = element_text(color="black", face="bold", hjust=0.5),
-        panel.background = element_rect(fill = "#43CD8033"),
-        aspect.ratio=1) +
-  xlab("Expression similarity deltas (V-I)") +
-  ylab("Density")
-
-print(expression_similarity_deltas_plot)
-```
-
-<!-- Panel C -->
-```{r plot_delta_correlations, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "function")}
-input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-
-features_delta_df = input_seq_sim_df %>%
-  inner_join(input_expr_sim_df, by="OG_ID") %>%
-  select(OG_ID, contains("delta"))
-
-#### Get correlation between deltas ###
-correlations_df = features_delta_df %>%
-  summarize(Cor_coefficient = round(cor.test(sequence_similarities_delta, expression_similarities_delta)$estimate, 3),
-            Pvalue = round(cor.test(sequence_similarities_delta, expression_similarities_delta)$p.value, 3)) %>%
-  mutate(Label = paste0("Pearsons's cor: ", Cor_coefficient, "\nPvalue: ", Pvalue))
-
-#### Plot correlation between deltas
-features_delta_plot = ggplot(data=features_delta_df, aes(x=sequence_similarities_delta, y=expression_similarities_delta)) +
-  geom_hex(bins=100) +
-  geom_smooth(method="lm", color="firebrick1") +
-  scale_fill_viridis_c(option="plasma", limits=c(1,10), oob = scales::squish) + #Everything 15 or higher will be represented in the same color
-  annotation_custom(grobTree(textGrob(correlations_df$Label, x=0.05,  y=0.92, hjust=0), gp=gpar(fontsize=10))) +
-  theme_bw() +
-  theme(axis.text = element_text(color="black"),
-      axis.title = element_text(color="black"),
-      panel.grid = element_line(color="white"),
-      aspect.ratio = 1,
-      plot.title = element_text(color="black", face="bold", hjust=0.5, size=10),
-      legend.position = "right") +
-  coord_fixed() +
-  xlab("Sequence similarity deltas (V-I)") +
-  ylab("Expression similarity deltas (V-I)")
-
-print(features_delta_plot)
-```
-
-<!-- Panel D,E -->
-```{r plot_zscore_deltas_distributions, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions")}
-input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-
-features_delta_df = input_seq_sim_df %>%
-  inner_join(input_expr_sim_df, by="OG_ID") %>%
-  select(OG_ID, contains("delta"))
-
-zscore_features_delta_df = features_delta_df %>%
-  mutate(sequence_similarities_delta = (sequence_similarities_delta - mean(features_delta_df$sequence_similarities_delta))/sd(features_delta_df$sequence_similarities_delta),
-         expression_similarities_delta = (expression_similarities_delta - mean(features_delta_df$expression_similarities_delta))/sd(features_delta_df$expression_similarities_delta))
-
-#########################################
-######## SEQUENCE #######################
-#########################################
-
-zscored_sequence_similarity_deltas_plot = ggplot(data=zscore_features_delta_df, aes(x=sequence_similarities_delta)) +
-  geom_density(fill="#1C86EE33", color="black") +
-  theme_bw() +
-  theme(axis.text = element_text(color="black"),
-        axis.title = element_text(color="black"),
-        plot.title = element_text(color="black", face="bold", hjust=0.5),
-        panel.background = element_rect(fill = "#1C86EE33"),
-        aspect.ratio=1) +
-  xlab("Z-scored sequence similarity deltas (V-I)") +
-  ylab("Density")
-
-print(zscored_sequence_similarity_deltas_plot)
-
-#########################################
-######## EXPRESSION #####################
-#########################################
-
-zscored_expression_similarity_deltas_plot = ggplot(data=zscore_features_delta_df, aes(x=expression_similarities_delta)) +
-  geom_density(fill="#43CD8033", color="black") +
-  theme_bw() +
-  theme(axis.text = element_text(color="black"),
-        axis.title = element_text(color="black"),
-        plot.title = element_text(color="black", face="bold", hjust=0.5),
-        panel.background = element_rect(fill = "#43CD8033"),
-        aspect.ratio=1) +
-  xlab("Z-scored expression similarity deltas (V-I)") +
-  ylab("Density")
-
-print(zscored_expression_similarity_deltas_plot)
-```
-
-<!-- Panel F -->
-```{r plot_zscore_delta_correlations, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "function")}
-input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-
-features_delta_df = input_seq_sim_df %>%
-  inner_join(input_expr_sim_df, by="OG_ID") %>%
-  select(OG_ID, contains("delta"))
-
-zscore_features_delta_df = features_delta_df %>%
-  mutate(sequence_similarities_delta = (sequence_similarities_delta - mean(features_delta_df$sequence_similarities_delta))/sd(features_delta_df$sequence_similarities_delta),
-         expression_similarities_delta = (expression_similarities_delta - mean(features_delta_df$expression_similarities_delta))/sd(features_delta_df$expression_similarities_delta))
-
-#### Get correlation between deltas ###
-correlations_df = zscore_features_delta_df %>%
-  summarize(Cor_coefficient = round(cor.test(sequence_similarities_delta, expression_similarities_delta)$estimate, 3),
-            Pvalue = round(cor.test(sequence_similarities_delta, expression_similarities_delta)$p.value, 3)) %>%
-  mutate(Label = paste0("Pearsons's cor: ", Cor_coefficient, "\nPvalue: ", Pvalue))
-
-#### Plot correlation between deltas
-zscored_features_delta_plot = ggplot(data=zscore_features_delta_df, aes(x=sequence_similarities_delta, y=expression_similarities_delta)) +
-  geom_hex(bins=100) +
-  geom_smooth(method="lm", color="firebrick1") +
-  scale_fill_viridis_c(option="plasma", limits=c(1,10), oob = scales::squish) + #Everything 15 or higher will be represented in the same color
-  annotation_custom(grobTree(textGrob(correlations_df$Label, x=0.05,  y=0.92, hjust=0), gp=gpar(fontsize=10))) +
-  theme_bw() +
-  theme(axis.text = element_text(color="black"),
-      axis.title = element_text(color="black"),
-      panel.grid = element_line(color="white"),
-      aspect.ratio = 1,
-      plot.title = element_text(color="black", face="bold", hjust=0.5, size=10),
-      legend.position = "right") +
-  coord_fixed() +
-  xlab("Z-scored sequence similarity deltas (V-I)") +
-  ylab("Z-scored expression similarity deltas (V-I)")
-
-print(zscored_features_delta_plot)
-```
-
-<!-- Panel A,B,C -->
-```{r combine_panels_SupFig2, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.width=12, fig.height=10}
-first_row = plot_grid(sequence_similarity_deltas_plot, expression_similarity_deltas_plot, features_delta_plot, 
-                        ncol=3, axis="tb", rel_widths = c(0.84,0.84,1))
-
-second_row = plot_grid(zscored_sequence_similarity_deltas_plot, zscored_expression_similarity_deltas_plot, zscored_features_delta_plot, 
-                        ncol=3, axis="tb", rel_widths = c(0.84,0.84,1))
-
-final_plots = plot_grid(first_row, second_row, ncol=1)
-print(final_plots)
-
-####################
-first_column = plot_grid(sequence_similarity_deltas_plot, zscored_sequence_similarity_deltas_plot, ncol=1, align="v")
-second_column = plot_grid(expression_similarity_deltas_plot, zscored_expression_similarity_deltas_plot, ncol=1, align="v")
-third_column = plot_grid(features_delta_plot, zscored_features_delta_plot, ncol=1, align="v")
-
-final_plots = plot_grid(first_column, second_column, third_column, ncol=3, rel_widths = c(0.80,0.82,1), align="h")
-print(final_plots)
-
-pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/ALL_genes/SupFig2-v1.pdf", width=12, height=10)
-print(final_plots)
-dev.off()
-```
-
-<!-- ################################ -->
-<!-- ########## Sup Figure 3 ######## -->
-<!-- ################################ -->
-
-```{r compare_seq_cons_measures, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.height=5, fig.width=4}
-input_seq_sim_df = read.delim("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/phyloP_scores_v1/Hs2-ALL_genes-sequence_similarities.tab", header=FALSE,
-                              col.names=c("OG_ID", "GeneID", "sequence_similarities_vertebrata"))
-input_phastcons_df = read.delim("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/phyloP_scores_v1/Hs2-ALL_genes-phyloP_scores_average.tab", header=FALSE,
-                              col.names=c("OG_ID", "GeneID", "PhastCons_vertebrata"))
-
-sequence_measures_df = input_seq_sim_df %>%
-  dplyr::select("GeneID", "sequence_similarities_vertebrata") %>%
-  left_join(input_phastcons_df %>%
-              dplyr::select("GeneID", "PhastCons_vertebrata"), by="GeneID")
-
-sequence_measures_comparison_plot = ggplot(data=sequence_measures_df, aes(x=sequence_similarities_vertebrata, y=PhastCons_vertebrata)) +
-  geom_hex(bins=100) +
-  geom_smooth(method="lm", color="firebrick1") +
-  annotation_custom(grobTree(textGrob(paste0("Pearsons's cor: ", 
-                                             round(cor.test(sequence_measures_df$sequence_similarities_vertebrata, sequence_measures_df$PhastCons_vertebrata)$estimate, 3), 
-                                             "\nPvalue: ", 
-                                             round(cor.test(sequence_measures_df$sequence_similarities_vertebrata, sequence_measures_df$PhastCons_vertebrata)$p.value, 3)), 
-                                      x=0.05,  y=0.92, hjust=0), gp=gpar(fontsize=10))) +
-  scale_fill_viridis_c(limits=c(1,10), oob = scales::squish, option="rocket") + #Everything 15 or higher will be represented in the same color
-  theme_bw() +
-  theme(axis.text = element_text(color="black"),
-      axis.title = element_text(color="black"),
-      panel.grid = element_line(color="white"),
-      legend.position = "bottom",
-      plot.title = element_text(color="black", face="bold", hjust=0.5, size=10)) +
-  scale_y_continuous(limits=c(0,1)) +
-  scale_x_continuous(limits=c(0,1)) +
-  coord_fixed() +
-  xlab("Average seq sim with vertebrates in dataset") +
-  ylab("Average UCSC PhastCons with 100 vertebrates") +
-  ggtitle("All human genes")
-  
-print(sequence_measures_comparison_plot)
-
-pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/ALL_genes/PhastCons_panel-v3.pdf", width=4, height=5)
-print(sequence_measures_comparison_plot)
-dev.off()
-```
-
 
 
 <!-- ################################ -->
