@@ -1913,9 +1913,9 @@ dev.off()
 
 <!-- Panel A -->
 ```{r compare_seq_cons_measures, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.height=5, fig.width=4}
-input_seq_sim_df = read.delim("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/phyloP_scores_v1/Hs2-ALL_genes-sequence_similarities.tab", header=FALSE,
+input_seq_sim_df = read.delim("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/phastCons_scores/Hs2-ALL_genes-sequence_similarities.tab", header=FALSE,
                               col.names=c("OG_ID", "GeneID", "sequence_similarities_vertebrata"))
-input_phastcons_df = read.delim("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/phyloP_scores_v1/Hs2-ALL_genes-phyloP_scores_average.tab", header=FALSE,
+input_phastcons_df = read.delim("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/phastCons_scores/Hs2-ALL_genes-phastCons_scores_average.tab", header=FALSE,
                               col.names=c("OG_ID", "GeneID", "PhastCons_vertebrata"))
 
 sequence_measures_df = input_seq_sim_df %>%
