@@ -84,4 +84,4 @@ The code to generate the following figures is available in **All_Figures.Rmd**.
 
 The code to generate the following figures is available in **One2one_Orthogroups_Figures.Rmd**.  
 
-* **Supplementary Figure 4-6**: Key results repeated with extra paralogous sets (BA-seq, BD-seq, BA-expr, BD-expr).   
+* **Supplementary Figures 4-6**: Key results repeated with extra paralogous sets (BA-seq, BD-seq, BA-expr, BD-expr).   
