@@ -6,11 +6,13 @@ Table of contents
 -------
 * [Study Overview](#study-overview)  
 * [Analyses](#analyses)  
-  + [All pairwise similarities ](#all-pairwise-similarities)
+  + [All pairwise similarities](#all-pairwise-similarities)
   + [Seq and expr sim analyses](#seq-and-expr-sim-analyses)
   + [Paralogous sets selection](#paralogous-sets-selection)
   + [Alternative expr metrics](#alternative-expr-metrics)
 * [Figures](#figures)  
+  + [Main figures](#main-figures)   
+  + [One to one orthogroup figures](#one-to-one-orthogroup-figures)  
 
 ### Study Overview 
 
@@ -32,9 +34,10 @@ This folder contains 4 subfolders, each containing a different snakemake pipelin
 #### All pairwise similarities 
 This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
 
- * Compute the **relative expression** across tissues for all the bilaterian-conserved, protein-coding genes of the 16 vertebrates and insect species included in our dataset.  
+* Compute the **relative expression** across tissues for all the bilaterian-conserved, protein-coding genes of the 16 vertebrates and insect species included in our dataset.  
 * Compute **all pairwise sequence similarities** between all possible pairs of genes (from different species) in an orthogroup.  
-* Compute **all pairwise expression similarities** between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression acrosss tissues.  
+* Compute **all pairwise expression similarities** between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression across tissues.  
+* Compute the average **phastCons** across the coding sequence of all human genes.  
 
 #### Seq and expr sim analyses
 This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
@@ -62,14 +65,23 @@ This folder contains snakemake pipeline a (i.e., **Snakefile**) used to run the 
 
 ### Figures
 
-This folder contains an Rmarkdown file used to generate the majority of the figure panels associated with the publication, and perform very few of the less demanding computational analyses. The content includes:  
+This folder contains two Rmarkdown files used to generate the majority of the figure panels associated with the publication, and perform very few of the less demanding computational analyses. 
+
+#### Main figures    
+
+The code to generate the following figures is available in **All_Figures.Rmd**.  
 
 * **Figure 1**: Framework overview and definition of sequence and expression similarities.  
 * **Figure 2**: Correlation of sequence and expression similarities between and within clades.  
 * **Figure 3**: Characterization of fast and slow evolving genes.  
 * **Figure 4**: Functional categories with common molecular diversification patterns between clades.  
 * **Figure 5**: Functional categories with molecular diversification biases between clades.   
-* **Supplementary Figure 1**: Comparison between measures of expression conservation.  
+* **Supplementary Figure 1**: Schematics for computation of sequence/expression similarity and definition of extra 1:1 orthogroup sets.  
 * **Supplementary Figure 2**: Deltas of sequence and expression similarities between vertebrates and insects.  
-* **Supplementary Figure 3**: Schematics for sequence/expression similarity computations and paralogous sets selection.  
+* **Supplementary Figure 3**: Comparison between alternative measures of sequence and expression conservation.  
+
+#### One to one orthogroup figures  
+
+The code to generate the following figures is available in **One2one_Orthogroups_Figures.Rmd**.  
+
 * **Supplementary Figure 4-6**: Key results repeated with extra paralogous sets (BA-seq, BD-seq, BA-expr, BD-expr).   
