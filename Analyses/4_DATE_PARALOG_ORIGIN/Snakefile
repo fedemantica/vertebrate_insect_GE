@@ -1,0 +1,216 @@
+configfile: "config.yaml"
+
+###### paths ###############
+DATA = config["general_paths"]["data"]
+SRC = config["general_paths"]["src"]
+CONDA_ENVS = config["general_paths"]["conda_envs"]
+
+BROCCOLI_DIR = config["paths"]["broccoli_dir"]
+DATED_DUPLICATIONS_DIR = config["paths"]["dated_duplications_dir"]
+PARALOG_SETS_DIR = config["paths"]["paralog_sets_dir"]
+
+######## tools ############
+MY_MAFFT = config["tools"]["my_mafft"]
+ALIGN_ORTHOGROUPS = config["tools"]["align_orthogroups"]
+PARSE_GENE_TREES = config["tools"]["parse_gene_trees"]
+DATE_GENE_DUPLICATIONS = config["tools"]["date_gene_duplications"]
+
+###### variables ###########
+ALL_SPECIES = config["variables"]["all_species"]
+BILATERIA = ALL_SPECIES
+VERTEBRATA = config["variables"]["vertebrata"]
+INSECTA = config["variables"]["insecta"]
+
+ORTHOGROUPS_FILE = config["variables"]["orthogroups_file"]
+BATCH_NUMBER = config["variables"]["batch_number"]
+SPECIES_TREE_FILE = config["variables"]["species_tree_file"]
+TREE_LEVELS_FILE = config["variables"]["tree_levels_file"]
+
+###### targets ##########
+MULTIPLE_ALIGNMENTS = expand("{path}/multiple_aln/orthogroups_batch_{batch_index}.log", path=DATED_DUPLICATIONS_DIR, batch_index=list(range(1,BATCH_NUMBER+1)))
+GENE_TREES = expand("{path}/gene_trees/orthogroups_batch_{batch_index}.log", path=DATED_DUPLICATIONS_DIR, batch_index=list(range(1,BATCH_NUMBER+1)))
+DUPLICATIONS_INFO = expand("{path}/duplications_info/orthogroups_batch_{batch_index}-duplication_info.tab", path=DATED_DUPLICATIONS_DIR, batch_index=list(range(1,BATCH_NUMBER+1)))
+ALL_DATED_DUPLICATIONS = expand("{path}/all_dated_duplications-{lca_type}.tab", path = DATED_DUPLICATIONS_DIR, lca_type = "lca_union")
+
+####### rules ############
+rule all:	
+	input:
+		DATED_DUPLICATIONS_DIR+"/all_dated_duplications-lca_union_v1.tab"
+		ALL_DATED_DUPLICATIONS
+		MULTIPLE_ALIGNMENTS,
+		GENE_TREES,
+		DUPLICATIONS_INFO,
+		ALL_DATED_DUPLICATIONS
+
+#######################################################
+########### BUILD GENE TREES ##########################
+#######################################################
+
+rule generate_batches:
+	input:
+		ORTHOGROUPS_FILE
+	output:
+		DATED_DUPLICATIONS_DIR+"/orthogroups_batches.txt"
+	params:
+		batch_number = BATCH_NUMBER
+	run:
+		import os
+		import re
+		import pandas as pd
+		import random
+
+		####### This is to assure that the batches will be the same in all runs
+		random.seed(31) 
+		orthogroups_df = pd.read_table(str(input), sep="\t", header=None, names=["OG_ID", "Species", "GeneID"], index_col=False)
+		### Sort the list, so that the order would always be the same
+		all_orthogroups_IDs = list(set(list(orthogroups_df["OG_ID"])))
+		all_orthogroups_IDs.sort()
+		batch_size = len(all_orthogroups_IDs) // params.batch_number + (len(all_orthogroups_IDs) % params.batch_number > 0)
+		orthogroups_batches_list = [all_orthogroups_IDs[i:i + batch_size] for i in range(1, len(all_orthogroups_IDs), batch_size)]
+		#ORTHOGROUPS_BATCHES = [[",".join(element)] for element in orthogroups_batches_list]
+		##### Save to file
+		batches_df = pd.DataFrame({"index": list(range(1,len(orthogroups_batches_list)+1)), "values": orthogroups_batches_list})
+		batches_df = batches_df.explode("values").reset_index(drop=True)
+		batches_df.to_csv(str(output), sep="\t", index=False, header=False)
+
+
+### Generate multiple alignments among all genes in a given orthogroup
+rule generate_multiple_alignments:
+	input:
+		all_orthogroups = ORTHOGROUPS_FILE,
+		batch_file = DATED_DUPLICATIONS_DIR+"/orthogroups_batches.txt",
+		fastas = expand("{path}/All_version2/fastas/{species}_ref_exint.fasta", path=BROCCOLI_DIR, species=ALL_SPECIES)
+	output:
+		DATED_DUPLICATIONS_DIR+"/multiple_aln/orthogroups_batch_{batch_index}.log"
+	params:
+		fastas_dir = BROCCOLI_DIR+"/All_version2/fastas",
+		#selected_orthogroups = lambda wildcards: str(ORTHOGROUPS_BATCHES[int(wildcards.batch_index)][0]),
+		output_dir = DATED_DUPLICATIONS_DIR+"/multiple_aln/batch_{batch_index}"
+	shell:
+		"""
+		mkdir -p {params.output_dir}; \
+		selected_orthogroups=$(cat {input.batch_file} | awk '$1=="{wildcards.batch_index}"' | cut -f2 | paste -sd,); \
+
+		python {ALIGN_ORTHOGROUPS}	--input_fasta {params.fastas_dir} \
+						--input_OG {input.all_orthogroups} \
+						--selected_orthogroups ${{selected_orthogroups}} \
+						--mafft {MY_MAFFT} \
+						--output {params.output_dir}; \
+
+		echo -e "Performed multiple alignments within the following orthogroups:\n${{selected_orthogroups}}" > {output}
+		"""
+
+
+### Build gene trees starting from multiple alignments
+#They are supposed to return the support for each node.
+#For now I am skipping the 5 orthogroups for which I could not get an aligment (in the bash if statement). This will have to be addressed
+rule build_fastTrees:
+	input:
+		logs = DATED_DUPLICATIONS_DIR+"/multiple_aln/orthogroups_batch_{batch_index}.log",
+		batch_file = DATED_DUPLICATIONS_DIR+"/orthogroups_batches.txt"
+	output:
+		logs  = DATED_DUPLICATIONS_DIR+"/gene_trees/orthogroups_batch_{batch_index}.log"
+	params:
+		#selected_orthogroups = lambda wildcards: str(re.sub(",", " ", ORTHOGROUPS_BATCHES[int(wildcards.batch_index)][0])),
+		input_dir = DATED_DUPLICATIONS_DIR+"/multiple_aln/batch_{batch_index}",
+		output_dir = DATED_DUPLICATIONS_DIR+"/gene_trees/batch_{batch_index}",
+		input_suffix = "multiple_aln",
+		output_suffix = "fasttree.nwk"
+	conda:
+		CONDA_ENVS+"/broccoli_1.2.yml"
+	shell:
+		"""
+		mkdir -p {params.output_dir}; \
+		selected_orthogroups=$(cat {input.batch_file} | awk '$1=="{wildcards.batch_index}"' | cut -f2); \
+
+		for OG_ID in ${{selected_orthogroups}}; do \
+			echo ${{OG_ID}}; \
+			if [ -s {params.input_dir}/${{OG_ID}}-{params.input_suffix} ]; then \
+				FastTree -quiet -bionj {params.input_dir}/${{OG_ID}}-{params.input_suffix} > {params.output_dir}/${{OG_ID}}-{params.output_suffix}; \
+			fi; \
+		done; \
+
+		echo -e "Built fasttrees for the following orthogroups:\n${{selected_orthogroups}}" > {output.logs}
+		"""
+
+
+#######################################################
+########### PARSE GENE TREES ##########################
+#######################################################
+
+### This rule is to date gene duplications using a species overlapping approach
+rule parse_gene_trees:
+	input:
+		batch_file = DATED_DUPLICATIONS_DIR+"/orthogroups_batches.txt",
+		gene_trees = DATED_DUPLICATIONS_DIR+"/gene_trees/orthogroups_batch_{batch_index}.log",
+		orthogroups = ORTHOGROUPS_FILE,
+		species_tree = SPECIES_TREE_FILE
+	output:
+		DATED_DUPLICATIONS_DIR+"/duplications_info_v1/orthogroups_batch_{batch_index}-duplication_info.tab"
+	params:
+		input_dir = DATED_DUPLICATIONS_DIR+"/gene_trees/batch_{batch_index}/",
+		input_suffix = "fasttree.nwk",
+	conda:
+		 CONDA_ENVS+"/broccoli_1.2.yml"
+	shell:
+		"""
+		selected_orthogroups=$(cat {input.batch_file} | awk '$1=="{wildcards.batch_index}"' | cut -f2 | paste -sd,); \
+
+		python {PARSE_GENE_TREES}	--orthogroups_file {input.orthogroups} \
+						--selected_orthogroups ${{selected_orthogroups}} \
+						--input_dir {params.input_dir} \
+						--input_suffix {params.input_suffix} \
+						--species_tree_file {input.species_tree} \
+						--output {output}
+		"""
+
+
+rule process_duplication_info:
+	input:
+		orthogroups = ORTHOGROUPS_FILE,
+		tree_levels = TREE_LEVELS_FILE,
+		duplication_info = DATED_DUPLICATIONS_DIR+"/duplications_info_v1/orthogroups_batch_{batch_index}-duplication_info.tab"
+	output:
+		DATED_DUPLICATIONS_DIR+"/dated_duplications_batches_v1/orthogroups_batch_{batch_index}-{lca_type}-dated_duplications.tab"
+	conda:
+		CONDA_ENVS+"/R4.2_env.yml"
+	shell:
+		"""
+		Rscript {DATE_GENE_DUPLICATIONS}	--orthogroups_file {input.orthogroups} \
+							--tree_levels_file {input.tree_levels} \
+							--duplications_info_file {input.duplication_info} \
+							--lca_type {wildcards.lca_type} \
+							--output {output}
+		"""
+
+
+#### Join info from all batches
+rule join_duplication_info:
+	input:
+		expand("{path}/duplications_info_v1/orthogroups_batch_{batch_index}-duplication_info.tab", path=DATED_DUPLICATIONS_DIR, batch_index=list(range(1,BATCH_NUMBER+1)))
+	output:
+		DATED_DUPLICATIONS_DIR+"/all_duplication_info_v1.tab"
+	run:
+		import pandas as pd
+
+		final_df = pd.DataFrame()
+		for input_file in list(input):
+		  input_df = pd.read_table(input_file, sep="\t", header=0, index_col=False)
+		  final_df = pd.concat([final_df, input_df])
+		#### Save to file
+		final_df.to_csv(str(output), sep="\t", header=True, index=False, na_rep="NA")
+
+rule join_dated_duplications:
+	input:
+		expand("{path}/dated_duplications_batches_v1/orthogroups_batch_{batch_index}-{{lca_type}}-dated_duplications.tab", path=DATED_DUPLICATIONS_DIR, batch_index=list(range(1,BATCH_NUMBER+1)))
+	output:
+		DATED_DUPLICATIONS_DIR+"/all_dated_duplications-{lca_type}_v1.tab"
+	run:
+		import pandas as pd
+
+		final_df = pd.DataFrame()
+		for input_file in list(input):
+		  input_df = pd.read_table(input_file, sep="\t", header=0, index_col=False)
+		  final_df = pd.concat([final_df, input_df])
+		#### Save to file
+		final_df.to_csv(str(output), sep="\t", header=True, index=False, na_rep="NA")

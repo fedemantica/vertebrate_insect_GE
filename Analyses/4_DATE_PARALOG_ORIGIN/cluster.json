@@ -1,0 +1,58 @@
+{
+  "__default__" :
+  {
+    "qsub" : "qsub -cwd -o \"logs/'{rule}.{wildcards}.$$.out'\" -e \"logs/'{rule}.{wildcards}.$$.out'\"",
+    "ram" : "3G",
+    "time" : "00:10:00",
+    "disk" : "5G",
+    "queue" : "short-centos79"
+  },
+  "generate_multiple_alignments" :
+  {
+    "qsub" : "qsub -cwd -o \"logs/'{rule}.{wildcards}.$$.out'\" -e \"logs/'{rule}.{wildcards}.$$.out'\"",
+    "ram" : "20G",
+    "time" : "00:45:00",
+    "disk" : "5G",
+    "queue" : "short-centos79"
+  },
+  "build_fastTrees" :
+  {
+    "qsub" : "qsub -cwd -o \"logs/'{rule}.{wildcards}.$$.out'\" -e \"logs/'{rule}.{wildcards}.$$.out'\"",
+    "ram" : "3G",
+    "time" : "00:15:00",
+    "disk" : "5G",
+    "queue" : "short-centos79"
+  },
+ "parse_gene_trees" :
+  {
+    "qsub" : "qsub -cwd -o \"logs/'{rule}.{wildcards}.$$.out'\" -e \"logs/'{rule}.{wildcards}.$$.out'\"",
+    "ram" : "1G",
+    "time" : "00:05:00",
+    "disk" : "1G",
+    "queue" : "short-centos79"
+  },
+ "process_duplication_info" :
+  {
+    "qsub" : "qsub -cwd -o \"logs/'{rule}.{wildcards}.$$.out'\" -e \"logs/'{rule}.{wildcards}.$$.out'\"",
+    "ram" : "1G",
+    "time" : "00:03:00",
+    "disk" : "1G",
+    "queue" : "short-centos79"
+  },
+  "compute_pairwise_seq_similarities" :
+  {
+    "qsub" : "qsub -cwd -o \"logs/'{rule}.{wildcards}.$$.out'\" -e \"logs/'{rule}.{wildcards}.$$.out'\"",
+    "ram" : "3G",
+    "time" : "00:10:00",
+    "disk" : "5G",
+    "queue" : "short-centos79"
+  },
+  "compute_species_pairwise_expr_sim" :
+  {
+    "qsub" : "qsub -cwd -o \"logs/'{rule}.{wildcards}.$$.out'\" -e \"logs/'{rule}.{wildcards}.$$.out'\"",
+    "ram" : "3G",
+    "time" : "00:10:00",
+    "disk" : "5G",
+    "queue" : "short-centos79"
+  }
+}

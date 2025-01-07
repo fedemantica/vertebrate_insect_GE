@@ -1,0 +1,25 @@
+general_paths:
+  data: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data"
+  src: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/src"
+  conda_envs: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/src/conda_envs"
+  nobackup_dir: "/no_backup/mirimia/fmantica/vertebrate_insects_GE"
+
+paths:
+  broccoli_dir: "/users/mirimia/fmantica/projects/bilaterian_GE/data/broccoli"
+  dated_duplications_dir: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/dated_duplications"
+  paralog_sets_dir: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets"
+
+tools:
+  my_mafft: "/users/mirimia/fmantica/software/src/MAFFT_V2.0/mafft.bat"
+  align_orthogroups: "./bin/align_orthogroups.py"
+  parse_gene_trees: "./bin/parse_gene_trees.py" ### originally: parse_gene_trees-v3.py
+  date_gene_duplications: "./bin/date_gene_duplications.R"
+
+variables:
+  all_species: ["Hs2", "Mm2", "Bt2", "Mdo", "Gga", "Xtr", "Dre", "Cmi", "Bla", "Sp2", "Dme", "Eba", "Aae", "BmA", "Tca", "Ame", "Bge", "Cdi", "Sma", "Obi"]
+  vertebrata: ["Hs2", "Mm2", "Bt2", "Mdo", "Gga", "Xtr", "Dre", "Cmi"]
+  insecta: ["Dme", "Eba", "Aae", "BmA", "Tca", "Ame", "Bge", "Cdi"]
+  orthogroups_file: "/users/mirimia/fmantica/projects/bilaterian_GE/data/gene_sets/All_version2/STRICT/Bilateria/conserved/Bilateria_conserved_orthogroups-EXPR_genes.txt"
+  batch_number: 200
+  species_tree_file: "./files/species_tree.nwk"
+  tree_levels_file: "./species_tree_levels.txt"
