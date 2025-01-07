@@ -4,43 +4,16 @@ configfile: "config.yaml"
 DATA = config["general_paths"]["data"]
 SRC = config["general_paths"]["src"]
 CONDA_ENVS = config["general_paths"]["conda_envs"]
-GENE_SETS_DIR = config["paths"]["gene_sets_dir"]
-ORIGINAL_REL_EXPR_DIR = config["paths"]["original_rel_expr_dir"]
-REL_EXPR_DIR = config["paths"]["rel_expr_dir"]
 PARALOG_SETS_DIR = config["paths"]["paralog_sets_dir"]
 HOUSEKEEPING_DIR = config["paths"]["housekeeping_dir"]
-
-######## tools ############
-COMPUTE_REL_EXPR = config["tools"]["compute_rel_expr"]
-COMPUTE_PAIRWISE_EXPR_SIM = config["tools"]["compute_pairwise_expr_sim"]
 
 ###### variables ###########
 ALL_SPECIES = config["variables"]["all_species"]
 BILATERIA = ALL_SPECIES
 VERTEBRATA = config["variables"]["vertebrata"]
 INSECTA = config["variables"]["insecta"]
-DEUTEROSTOMA = config["variables"]["deuterostoma"]
-PROTOSTOMA = config["variables"]["protostoma"]
-
-CLADE_SPECIES_DICT = {}
-CLADE_SPECIES_DICT["Vertebrata"] = VERTEBRATA
-CLADE_SPECIES_DICT["Insecta"] = INSECTA
-CLADE_SPECIES_DICT["Bilateria"] = BILATERIA
-
-ALL_TISSUES = config["variables"]["all_tissues"]
-
 MY_MEASURES = config["variables"]["my_measures"]
 PARALOG_TYPES = config["variables"]["paralog_types"]
-
-#Count batches number and get a list of all batches
-import os.path
-BATCHES_FILE = PARALOG_SETS_DIR+"/orthogroups_batches/batches_number.txt"
-if os.path.isfile(BATCHES_FILE):
-  with open(BATCHES_FILE) as f:
-    TOT_BATCHES = int(f.readline().strip())
-    BATCH_NUMBER = list(range(1, TOT_BATCHES+1))
-else:
-  BATCH_NUMBER = 1
 
 ###### targets ##########
 ALL_SIM_SCORES = PARALOG_SETS_DIR+"/selected_paralog_sets/all_seq_expr_scores.tab"
@@ -51,10 +24,8 @@ VERT_HOUSEKEEPING_OGS = expand("{path}/Housekeeping_vertebrata-{paralog_type}-Ta
 ####### rules ############
 rule all:	
 	input:
-		#VERT_HOUSEKEEPING_OGS	
 		SPECIES_AVERAGE_SIMILARITIES
 		DEFINE_PARALOG_SETS
-		#ALL_SIM_SCORES
 
 #######################################################
 ###### TRANSFORMATIONS FOR PARALOG SELECTION ##########
@@ -206,6 +177,4 @@ rule define_vert_housekeeping_genes:
 		housekeeping_vertebrata_df = vertebrata_df.loc[~(vertebrata_df["OG_ID"].isin(High_Tau_OGs))]
 		### Save to file
 		housekeeping_vertebrata_df.to_csv(str(output.orthogroups), sep="\t", index=False, header=False, na_rep="NA")
-                housekeeping_vertebrata_df["OG_ID"].drop_duplicates().to_csv(str(output.OG_IDs), sep="\t", index=False, header=False, na_rep="NA") 
-
-
+                housekeeping_vertebrata_df["OG_ID"].drop_duplicates().to_csv(str(output.OG_IDs), sep="\t", index=False, header=False, na_rep="NA")
