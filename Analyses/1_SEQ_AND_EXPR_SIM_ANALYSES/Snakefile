@@ -6,26 +6,14 @@ SRC = config["general_paths"]["src"]
 CONDA_ENVS = config["general_paths"]["conda_envs"]
 NOBACKUP_DIR = config["general_paths"]["nobackup_dir"]
 GENERAL_PATTERNS = config["paths"]["general_patterns"]
-GENE_SETS_DIR = config["paths"]["gene_sets_dir"]
-PCA_ANALYSIS_DIR = config["paths"]["pca_analysis"]
-GO_TRANSFERS = config["paths"]["go_transfers"]
-ORIGINAL_REL_EXPR_DIR = config["paths"]["original_rel_expr_dir"]
-REL_EXPR_DIR = config["paths"]["rel_expr_dir"]
 GTF_REF_DIR = config["paths"]["gtf_ref_dir"]
 DATABASE = config["paths"]["database"]
-GENERAL_PATTERNS_BD = config["paths"]["general_patterns_BD"]
-GENERAL_PATTERNS_BA = config["paths"]["general_patterns_BA"]
 PARALOG_SETS_DIR = config["paths"]["paralog_sets_dir"]
 
 ######## tools ############
-RUN_GPROFILER2 = config["tools"]["run_gprofiler2"]
 GET_GMT_FILES = config["tools"]["get_gmt_files"]
-COMPUTE_REL_EXPR = config["tools"]["compute_rel_expr"]
 GET_START_STOP_INFO = config["tools"]["get_start_stop_info"]
 GET_CDS_EXONS = config["tools"]["get_CDS_exons"]
-FORMAT_PHYLOP_SCORES = config["tools"]["format_phyloP_scores"]
-SELECT_BEST_DIVERGENT_ORTHOLOGS = config["tools"]["select_best_divergent_orthologs"]
-SELECT_BEST_ANCESTRAL_ORTHOLOGS = config["tools"]["select_best_ancestral_orthologs"]
 TRANSFER_GO_SETS = config["tools"]["transfer_GO_sets"]
 
 ###### variables ###########
@@ -33,48 +21,20 @@ ALL_SPECIES = config["variables"]["all_species"]
 BILATERIA = ALL_SPECIES
 VERTEBRATA = config["variables"]["vertebrata"]
 INSECTA = config["variables"]["insecta"]
-DEUTEROSTOMA = config["variables"]["deuterostoma"]
-PROTOSTOMA = config["variables"]["protostoma"]
-
-CLADE_SPECIES_DICT = {}
-CLADE_SPECIES_DICT["Vertebrata"] = VERTEBRATA
-CLADE_SPECIES_DICT["Insecta"] = INSECTA
-CLADE_SPECIES_DICT["Bilateria"] = BILATERIA
-
-ALL_TISSUES = config["variables"]["all_tissues"]
-
 MY_MEASURES = config["variables"]["my_measures"]
 CONSERVATION_CATEGORIES = config["variables"]["conservation_categories"]
 PARALOG_TYPES = config["variables"]["paralog_types"]
-EXTRA_EXPR_METRICS = config["variables"]["extra_expr_metrics"]
-
-#Count batches number and get a list of all batches
-import os.path
-BATCHES_FILE = PARALOG_SETS_DIR+"/orthogroups_batches/batches_number.txt"
-if os.path.isfile(BATCHES_FILE):
-  with open(BATCHES_FILE) as f:
-    TOT_BATCHES = int(f.readline().strip())
-    BATCH_NUMBER = list(range(1, TOT_BATCHES+1))
-else:
-  BATCH_NUMBER = 1
-
+EXTRA_METRICS = config["variables"]["extra_metrics"]
 
 ###### targets ##########
 DEFINE_GENE_GROUPS = expand("{path}/{paralog_type}/{measure}/GO_enrichments/{measure}-{gene_number}_{category}-{paralog_type}_genes-GO_input.tab", path=GENERAL_PATTERNS, measure=MY_MEASURES, gene_number=500, category=CONSERVATION_CATEGORIES, paralog_type=PARALOG_TYPES)
 TRANSFERRED_GOS = expand("{path}/GO_annotations/backgrounds/Bilateria_conserved-GO_transfers-{paralog_type}_genes.gmt", path=DATA, paralog_type=PARALOG_TYPES)
-EXTRA_METRICS_BY_CLADE = expand("{path}/{paralog_type}/{measure}/{measure}_by_clade-{paralog_type}_genes.tab", path=GENERAL_PATTERNS, paralog_type="ALL", measure=EXTRA_EXPR_METRICS)
-PHYLOP_SCORES = expand("{path}/phyloP_scores_v1/Hs2-{paralog_type}_genes-phyloP_scores_average.tab", path=DATA, paralog_type="ALL")
+EXTRA_METRICS_BY_CLADE = expand("{path}/{paralog_type}/{measure}/{measure}_by_clade-{paralog_type}_genes.tab", path=GENERAL_PATTERNS, paralog_type="ALL", measure=EXTRA_METRICS)
+EXTRA_METRICS_GO_INPUTS = expand("{path}/{paralog_type}/{measure}/GO_enrichments/{measure}-{gene_number}_{category}-{paralog_type}_genes-GO_input.tab", path=GENERAL_PATTERNS, paralog_type="ALL", gene_number=500, category=CONSERVATION_CATEGORIES, measure=EXTRA_METRICS)
 
 ####### rules ############
 rule all:	
 	input:
-		DATA+"/phyloP_scores_v1/Hs2-ALL_genes-sequence_similarities.tab",
-		DATA+"/phyloP_scores_v1/Hs2-ALL_genes-phyloP_scores_average.tab"
-		#expand(DATA+"/phyloP_scores_v1/chr{chr_number}/Hs2-ALL_genes-phyloP_scores-orthogroups_batch_{batch_number}.tab", chr_number=[str(x) for x in list(range(1,23))]+["X", "Y"], batch_number=BATCH_NUMBER)
-		#PHYLOP_SCORES,
-		#EXTRA_METRICS_BY_CLADE
-		#DEFINE_GENE_GROUPS,
-		#TRANSFERRED_GOS
 
 #######################################################
 ###### SEQ SIM AND EXPR SIM BY OG #####################
@@ -169,12 +129,12 @@ rule define_conservation_categories:
 
 
 #######################################################
-###### NEW GO TRANSFERS BASED ON BEST HITS ############
+###### NEW GO TRANSFERS BASED ON SPECIFIC GENES #######
 #######################################################
 
 rule generate_GO_txt:
 	input:
-		GOs = "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/GO_annotations/test/Hs2-test.txt",
+		GOs = "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/GO_annotations/full_annot/Hs2-GO_annot-Ensembl_v106.txt",
 		orthogroups = PARALOG_SETS_DIR+"/selected_paralog_sets/Bilateria_conserved-{paralog_type}_genes.txt"
 	output:
 		DATA+"/GO_annotations/backgrounds/Bilateria_conserved-GO_transfers-{paralog_type}_genes.txt"
@@ -216,7 +176,7 @@ rule get_GO_enrichments_inputs:
 		"""
 
 #######################################################
-######## COMPARE WITH PHYLOP SCORE ####################
+######## COMPARE WITH PHASTCONS SCORE #################
 #######################################################
 
 
@@ -289,7 +249,6 @@ rule compute_average_phastCons_score_by_gene:
 		cat {input.phastCons} | awk -v OFS="\t" '{{seen[$4]+=$8; count[$4]++}} END {{for (x in seen) print x, seen[x]/count[x]}}' \
 		| translate -a <(cat {input.orthogroups} | grep Hs2 | awk '{{print $3"\t"$1}}') 1 | awk -v OFS="\t" '{{print $2,$1,$3}}' > {output}
 		"""
-
 
 ########## COUNTERPART WITH THE AVERAGE SEQ SIM AMONG VERTEBRATES
 rule compute_average_measure_by_human_gene:
