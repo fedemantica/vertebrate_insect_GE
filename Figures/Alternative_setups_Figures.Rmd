@@ -1,5 +1,5 @@
 ---
-title: "Paralog_sets_figures"
+title: "All supporting figures"
 output: html_document
 date: "2024-05-25"
 ---
@@ -37,13 +37,17 @@ library(ggpp)
 #### Set directories
 home= "/nfs/users/mirimia/fmantica/"
 paralog_sets_dir = paste0(home, "projects/vertebrate_insect_GE/data/paralog_sets/")
-general_patterns_dir = paste0(home, "projects/vertebrate_insect_GE/data/general_patterns_v2/")
+general_patterns_dir = paste0(home, "projects/vertebrate_insect_GE/data/general_patterns/")
 GO_annot_dir = paste0(home, "projects/vertebrate_insect_GE/data/GO_annotations/backgrounds/")
 ts_gains_losses_dir = paste0(home, "projects/bilaterian_GE/data/ts_gains_losses/species_QN_5_TPM_v6/All_version2/")
 GSEA_dir = paste0(home, "projects/vertebrate_insect_GE/data/GSEA/")
 
-##### Create variables
-paralog_type = "BD_expr"
+##### Create run-specific variables
+paralog_type = "ALL"
+sequence_similarities_type = "sequence_similarities_original_NoStartEndGaps"
+expression_similarities_type = "expression_similarities"
+
+##### Create fix variables
 all_species = c("Hs2", "Mm2", "Bt2", "Mdo", "Gga", "Xtr", "Dre", "Cmi", "Dme", "Eba", "Aae", "BmA", "Tca", "Ame", "Bge", "Cdi")
 ordered_species = all_species
 Vertebrata = c("Hs2", "Mm2", "Bt2", "Mdo", "Gga", "Xtr", "Dre", "Cmi")
@@ -55,10 +59,6 @@ selected_font = "sans"
 ##### Set aestetics vectors
 tissue_colors = c("Neural"="#1965B0", "Testis"="#AE76A3", "Ovary"="#882E72", "Muscle"="#4EB265", 
                     "Kidney"="#F7F056", "Epithelial"="#7BAFDE", "DigestiveTract"="#F1932D", "Adipose"="#DC050C", "None"="dimgray")
-
-##### This is for the extra analysis
-chromosomes_colors = pals::cols25(24)
-names(chromosomes_colors) = paste0("chr", c(seq(1,22), "X", "Y"))
 ```
 
 ```{r functions, echo=FALSE, message=FALSE, warning=FALSE, dependson="setup"}
@@ -90,7 +90,9 @@ annot_df = data.frame(x = "left",
 ######## SEQ SIM ########################
 #########################################
 ### Input
-input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+#input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/", sequence_similarities_type, "/", sequence_similarities_type, "_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+colnames(input_seq_sim_df) = c("OG_ID", "sequence_similarities_vertebrata", "sequence_similarities_insecta", "sequence_similarities_delta")
 
 ### Plot
 seq_sim_joint_plot = ggplot(data=input_seq_sim_df) +
@@ -104,7 +106,7 @@ seq_sim_joint_plot = ggplot(data=input_seq_sim_df) +
         panel.grid = element_line(color="white"),
         panel.background = element_rect(fill = "#1C86EE33")) +
   scale_x_continuous(breaks = number_ticks(6)) +
-  scale_y_continuous(breaks = number_ticks(4), limits=c(0,3)) +
+  scale_y_continuous(breaks = number_ticks(4), limits=c(0,3.5)) +
   ylab("Density") +
   xlab("Sequence similarities")
 
@@ -114,7 +116,9 @@ panel_A = seq_sim_joint_plot
 ######## EXPR SIM #######################
 #########################################
 ### Input
-input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+#input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/", expression_similarities_type, "/", expression_similarities_type, "_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+colnames(input_expr_sim_df) = c("OG_ID", "expression_similarities_vertebrata", "expression_similarities_insecta", "expression_similarities_delta")
 
 ### Plot
 expr_sim_joint_plot = ggplot(data=input_expr_sim_df) +
@@ -155,8 +159,13 @@ print(panel_AB)
 #########################################
 ######## INPUT ##########################
 #########################################
-input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+# input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+# input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/", sequence_similarities_type, "/", sequence_similarities_type, "_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+colnames(input_seq_sim_df) = c("OG_ID", "sequence_similarities_vertebrata", "sequence_similarities_insecta", "sequence_similarities_delta")
+
+input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/", expression_similarities_type, "/", expression_similarities_type, "_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+colnames(input_expr_sim_df) = c("OG_ID", "expression_similarities_vertebrata", "expression_similarities_insecta", "expression_similarities_delta")
 
 combined_df = input_seq_sim_df %>%
   full_join(input_expr_sim_df, by="OG_ID") %>%
@@ -257,8 +266,13 @@ print(panel_CD)
 #########################################
 ######## INPUT ##########################
 #########################################
-input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+# input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+# input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/", sequence_similarities_type, "/", sequence_similarities_type, "_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+colnames(input_seq_sim_df) = c("OG_ID", "sequence_similarities_vertebrata", "sequence_similarities_insecta", "sequence_similarities_delta")
+
+input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/", expression_similarities_type, "/", expression_similarities_type, "_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+colnames(input_expr_sim_df) = c("OG_ID", "expression_similarities_vertebrata", "expression_similarities_insecta", "expression_similarities_delta")
 
 combined_df = input_seq_sim_df %>%
   full_join(input_expr_sim_df, by="OG_ID") %>%
@@ -390,7 +404,8 @@ cor.test(insect_df$sequence_similarities, insect_df$expression_similarities)
 gene_number = 500
 conservation_status = c("most_conserved", "least_conserved")
 clades = c("vertebrata", "insecta")
-features = c("sequence_similarities", "expression_similarities")
+features = c(sequence_similarities_type, expression_similarities_type)
+#features = c("sequence_similarities", "expression_similarities")
 
 all_features_clade_conservation_df = data.frame()
 for (status in conservation_status) {
@@ -400,7 +415,7 @@ for (status in conservation_status) {
       input_df = read.delim(input_file, header=FALSE, col.names=c("OG_ID")) %>%
         mutate(Conservation=status,
                Clade=clade,
-               Feature=feature)
+               Feature=sub("_original.*", "", sub("_blosum.*", "", sub("_summed_paralogs", "", feature))))
       #### Join to the final dataframe
       all_features_clade_conservation_df = dplyr::bind_rows(all_features_clade_conservation_df, input_df)
     }
@@ -536,7 +551,7 @@ panel_G = lethal_phenotype_status_plot
 gene_number = 500
 conservation_status = c("most_conserved", "least_conserved")
 clades = c("vertebrata", "insecta")
-features = c("sequence_similarities", "expression_similarities")
+features = c(sequence_similarities_type, expression_similarities_type)
 
 all_features_clade_conservation_df = data.frame()
 for (status in conservation_status) {
@@ -546,7 +561,7 @@ for (status in conservation_status) {
       input_df = read.delim(input_file, header=FALSE, col.names=c("OG_ID")) %>%
         mutate(Conservation=status,
                Clade=clade,
-               Feature=feature)
+               Feature=sub("_original.*", "", sub("_blosum.*", "", sub("_summed_paralogs", "", feature))))
       #### Join to the final dataframe
       all_features_clade_conservation_df = dplyr::bind_rows(all_features_clade_conservation_df, input_df)
     }
@@ -683,7 +698,7 @@ panel_H = duplication_status_plot
 gene_number = 500
 conservation_status = c("most_conserved", "least_conserved")
 clades = c("vertebrata", "insecta")
-features = c("sequence_similarities", "expression_similarities")
+features = c(sequence_similarities_type, expression_similarities_type)
 
 all_features_clade_conservation_df = data.frame()
 for (status in conservation_status) {
@@ -693,7 +708,7 @@ for (status in conservation_status) {
       input_df = read.delim(input_file, header=FALSE, col.names=c("OG_ID")) %>%
         mutate(Conservation=status,
                Clade=clade,
-               Feature=feature)
+               Feature=sub("_original.*", "", sub("_blosum.*", "", sub("_summed_paralogs", "", feature))))
       #### Join to the final dataframe
       all_features_clade_conservation_df = dplyr::bind_rows(all_features_clade_conservation_df, input_df)
     }
@@ -718,6 +733,28 @@ taus_df = taus_df %>%
   mutate(Clade = ifelse(Species %in% Vertebrata, "vertebrata", "insecta")) %>%
   select(OG_ID, Clade, Tau)
 
+##########################
+## SUMMED_PARALOG_EXPR ###
+##########################
+# I need a slightly different code here, because the expression quantification is done at the level of orthogroups.
+if (expression_similarities_type == "expression_similarities_summed_paralogs") {
+  
+  #### Read in taus
+  taus_df = data.frame()
+  for (species in c(ordered_species[ordered_species!="BmA"], "Bmo")) {
+    taus_file = paste0("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets/pairwise_expression_similarities_summed_paralogs/species_taus/", species, "-taus.tab")
+    species_taus_df = read.delim(taus_file, header=FALSE, col.names=c("OG_ID", "Tau")) %>%
+      mutate(Species = species)
+    ##### Join to final df
+    taus_df = dplyr::bind_rows(species_taus_df, taus_df)
+  }
+  
+  taus_df = taus_df %>%
+    mutate(Clade = ifelse(Species %in% Vertebrata, "vertebrata", "insecta")) %>%
+    select(OG_ID, Clade, Tau)
+}
+
+#### Common to all systems
 all_features_clade_conservation_tau_df = all_features_clade_conservation_df %>%
   left_join(taus_df, by=c("OG_ID", "Clade"))
 
@@ -804,7 +841,7 @@ print(top_rows)
 gene_number = 500
 conservation_status = c("most_conserved", "least_conserved")
 clades = c("vertebrata", "insecta")
-features = c("sequence_similarities", "expression_similarities")
+features = c(sequence_similarities_type, expression_similarities_type)
 
 all_features_clade_conservation_df = data.frame()
 for (status in conservation_status) {
@@ -814,7 +851,7 @@ for (status in conservation_status) {
       input_df = read.delim(input_file, header=FALSE, col.names=c("OG_ID")) %>%
         mutate(Conservation=status,
                Clade=clade,
-               Feature=feature)
+               Feature=sub("_original.*", "", sub("_blosum.*", "", sub("_summed_paralogs", "", feature))))
       #### Join to the final dataframe
       all_features_clade_conservation_df = dplyr::bind_rows(all_features_clade_conservation_df, input_df)
     }
@@ -914,8 +951,18 @@ panel_JK = all_common_enrichments_plots
 <!-- ################################ -->
 
 ```{r run_fgsea, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "function")}
-input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+####################################
+######### INPUTS ###################
+####################################
+
+#### Read input
+input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/", sequence_similarities_type, "/", sequence_similarities_type, "_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+colnames(input_seq_sim_df) = c("OG_ID", "sequence_similarities_vertebrata", "sequence_similarities_insecta", "sequence_similarities_delta")
+
+input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/", expression_similarities_type, "/", expression_similarities_type, "_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+colnames(input_expr_sim_df) = c("OG_ID", "expression_similarities_vertebrata", "expression_similarities_insecta", "expression_similarities_delta")
+
+##### Process
 
 features_delta_df = input_seq_sim_df %>%
   inner_join(input_expr_sim_df, by="OG_ID") %>%
@@ -1000,7 +1047,8 @@ NES_plots = ggplot(data=combined_features_fgsea_df, aes(x=NES, y=GO_name, fill=N
 print(NES_plots)
 
 ###### Save legend separately
-pdf(paste0("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/paralog_sets/", paralog_type, "-NES_legend.pdf"), width=10, height=10)
+pdf(paste0("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/all_extra_whole_figures/", paralog_type, "-", sequence_similarities_type, "-", expression_similarities_type, "-NES_legend-v1.pdf"), 
+    width=10, height=10)
 print(NES_plots)
 dev.off()
 
@@ -1039,7 +1087,8 @@ orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", 
 
 all_ts_genes_file = paste0(ts_gains_losses_dir, "Bilateria_conserved_orthogroups-All_genes-associated_tissues.tab")
 all_ts_genes_df = read.delim(all_ts_genes_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID", "Tau", "Tissue", "Top_tissue", "Expr_cutoff")) %>%
-  filter(Tau <= 0.75, Expr_cutoff=="YES_EXPR") %>%
+  filter(Tau >= 0.75, Expr_cutoff=="YES_EXPR") %>%
+  separate_rows(Tissue, sep=";") %>%
   select(GeneID, Tissue) %>%
   right_join(orthogroups_df, by="GeneID") %>%
   mutate(Tissue = ifelse(is.na(Tissue), "None", Tissue)) %>%
@@ -1047,6 +1096,33 @@ all_ts_genes_df = read.delim(all_ts_genes_file, header=FALSE, col.names=c("OG_ID
   ### Select only vertebrate and insect species
   filter(Species %in% c(Vertebrata, Insecta)) %>%
   mutate(Clade = ifelse(Species %in% Vertebrata, "Vertebrata", "Insecta"))
+
+##########################
+## SUMMED_PARALOG_EXPR ###
+##########################
+
+### This is different for the summed paralogs
+if (expression_similarities_type == "expression_similarities_summed_paralogs") {
+  all_ts_genes_df = data.frame()
+  for (species in c(ordered_species[ordered_species != "BmA"], "Bmo")) {
+    tau_file = paste0("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets/pairwise_expression_similarities_summed_paralogs/species_taus/", species, "-taus.tab")
+    ts_tissue_file = paste0("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets/pairwise_expression_similarities_summed_paralogs/species_associated_tissue/", species, "-associated_tissue.tab")
+    #### Read in files
+    tau_df = read.delim(tau_file, header=FALSE, col.names=c("OG_ID", "Tau"))
+    associated_tissue_df = read.delim(ts_tissue_file, header=FALSE, col.names=c("OG_ID", "Tissue", "Top_tissue"))
+    #### Combine inputs and process
+    combined_df = tau_df %>%
+      filter(Tau >= 0.75) %>%
+      left_join(associated_tissue_df, by="OG_ID") %>%
+      filter(Tissue != "None") %>%
+      separate_rows(Tissue, sep=";") %>%
+      mutate(Species = species) %>%
+      mutate(Clade = ifelse(Species %in% Vertebrata, "Vertebrata", "Insecta"))
+    #### Join to final dataframe
+    all_ts_genes_df = all_ts_genes_df %>%
+      dplyr::bind_rows(combined_df)
+  }
+}
 
 ################################################
 ########### SEQUENCE FISHER ####################
@@ -1216,7 +1292,8 @@ top_rows_legend = plot_grid(top_rows, NA, ncol=2, rel_widths = c(1,0.1))
 paralog_set_figure = plot_grid(top_rows_legend, fourth_row, ncol=1, rel_heights = c(1,0.7))
 print(paralog_set_figure)
 
-pdf(paste0("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/paralog_sets/", paralog_type, "-whole_figure-v1.pdf"), width=17/2.54, height=26/2.54)
+pdf(paste0("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/all_extra_whole_figures/", 
+           paralog_type, "-", sequence_similarities_type, "-", expression_similarities_type, "-whole_figure-v1.pdf"), width=17/2.54, height=26/2.54)
 print(paralog_set_figure)
 dev.off()
 ```
