@@ -8,6 +8,8 @@ paths:
   rel_expr_dir: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/relative_expressions"
   paralog_sets_dir: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets"
   score_matrix_dir: "./downloaded"
+  gtf_ref_dir: "/users/mirimia/fmantica/projects/bilaterian_GE/data/DB/corrected_gtf/All_version2/ref_gene_entries"
+  database: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/DB"
 
 tools:
   compute_pairwise_expr_cor: "./bin/compute_pairwise_expr_cor.py"
@@ -18,6 +20,8 @@ tools:
   compute_pairwise_expr_sim_summed_paralogs: "./bin/compute_pairwise_expr_sim-summed_paralogs.py"
   compute_tau: "./bin/compute_tau.py"
   associate_tissue_with_ts: "./bin/associate_tissue_with_ts.py"
+  get_start_stop_info: "./bin/get_start_stop_info.py"
+  get_CDS_exons: "./bin/get_CDS_exons.py"
 
 variables:
   all_species: ["Hs2", "Mm2", "Bt2", "Mdo", "Gga", "Xtr", "Dre", "Cmi", "Bla", "Sp2", "Dme", "Eba", "Aae", "BmA", "Tca", "Ame", "Bge", "Cdi", "Sma", "Obi"]

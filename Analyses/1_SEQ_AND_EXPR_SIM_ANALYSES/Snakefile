@@ -4,16 +4,11 @@ configfile: "config.yaml"
 DATA = config["general_paths"]["data"]
 SRC = config["general_paths"]["src"]
 CONDA_ENVS = config["general_paths"]["conda_envs"]
-NOBACKUP_DIR = config["general_paths"]["nobackup_dir"]
 GENERAL_PATTERNS = config["paths"]["general_patterns"]
-GTF_REF_DIR = config["paths"]["gtf_ref_dir"]
-DATABASE = config["paths"]["database"]
 PARALOG_SETS_DIR = config["paths"]["paralog_sets_dir"]
 
 ######## tools ############
 GET_GMT_FILES = config["tools"]["get_gmt_files"]
-GET_START_STOP_INFO = config["tools"]["get_start_stop_info"]
-GET_CDS_EXONS = config["tools"]["get_CDS_exons"]
 TRANSFER_GO_SETS = config["tools"]["transfer_GO_sets"]
 
 ###### variables ###########
@@ -174,106 +169,3 @@ rule get_GO_enrichments_inputs:
 		"""
 		cat {input} | tail -n+2 | cut -f1 > {output}
 		"""
-
-#######################################################
-######## COMPARE WITH PHASTCONS SCORE #################
-#######################################################
-
-
-rule start_stop_info_by_gene:
-	input:
-		GTF_REF_DIR+"/{species}_annot-B-brochi.gtf"
-	output:
-		DATABASE+"/gene_extra_info/{species}_start_stop.tab"
-	shell:
-		"""
-		python {GET_START_STOP_INFO} --input {input} --output {output}
-		"""
-
-rule CDS_exons_by_gene:
-	input:
-		GTF_REF_DIR+"/{species}_annot-B-brochi.gtf"
-	output:
-		DATABASE+"/gene_extra_info/{species}-CDS_exons.tab"
-	shell:
-		"""
-		python {GET_CDS_EXONS} --input {input} --output {output}
-		"""
-
-### This is downloaded from UCSC
-rule download_phastCons_score_by_chr:
-	output:
-		NOBACKUP_DIR+"/phastCons/chr{chr_number}.phastCons100way.wigFix.gz"
-	shell:
-		"""
-		wget -O {output} http://hgdownload.cse.ucsc.edu/goldenPath/hg38/phastCons100way/hg38.100way.phastCons/chr{wildcards.chr_number}.phastCons100way.wigFix.gz
-		"""
-
-rule format_phastCons_scores:
-	input:
-		NOBACKUP_DIR+"/phastCons/chr{chr_number}.phastCons100way.wigFix.gz"
-	output:
-		NOBACKUP_DIR+"/phastCons/chr{chr_number}.phastCons100way.tab.gz"
-	shell:
-		"""
-		zcat {input} | awk 'BEGIN {{FS=OFS="\t"}} /^fixedStep/ {{split($0, a, "[=]"); chrom = a[2]; start = a[3]; step = 1; pos = start; next;}} {{print chrom, pos, pos+1, $1; pos += step;}}' \
-		| sed 's/ start//; s/ step//g' | gzip > {output}
-		"""
-
-### This will return the phastCons score for each nucleotide of each gene
-rule associated_genes_with_phastCons_scores:
-	input:
-		start_stop_info = DATABASE+"/gene_extra_info/Hs2-CDS_exons.tab",
-		orthogroups = PARALOG_SETS_DIR+"/selected_paralog_sets/Bilateria_conserved-{paralog_type}_genes.txt",
-		phastCons_scores = NOBACKUP_DIR+"/phastCons/chr{chr_number}.phastCons100way.tab.gz"
-	output:
-		DATA+"/phastCons_scores/Hs2-{paralog_type}_genes-phastCons_scores-chr{chr_number}.tab"
-	shell:
-		"""
-		cat {input.start_stop_info} | awk '$2=="chr{wildcards.chr_number}"' \
-		| filter_1col 1 <(cat {input.orthogroups} | awk '$2=="Hs2" {{print $3}}' | translate -a <(cat {input.start_stop_info} | cut -f1,2 | sort | uniq) 1 \
-		| awk '$2=="chr{wildcards.chr_number}" {{print $1}}') | awk -v OFS="\t" '{{print $2,$3,$4,$1}}' > {output}.tmp; \
-		/software/mi/bin/bedtools intersect -wa -wb -a {output}.tmp -b {input.phastCons_scores} > {output}; \
-		rm {output}.tmp
-		"""
-
-
-rule compute_average_phastCons_score_by_gene:
-	input:
-		phastCons = expand(DATA+"/phastCons_scores/Hs2-{{paralog_type}}_genes-phastCons_scores-chr{chr_number}.tab", chr_number=[str(x) for x in list(range(1,23))]+["X", "Y"]),
-		orthogroups = PARALOG_SETS_DIR+"/selected_paralog_sets/Bilateria_conserved-{paralog_type}_genes.txt"
-	output:
-		DATA+"/phastCons_scores/Hs2-{paralog_type}_genes-phastCons_scores_average.tab"
-	shell:
-		"""
-		cat {input.phastCons} | awk -v OFS="\t" '{{seen[$4]+=$8; count[$4]++}} END {{for (x in seen) print x, seen[x]/count[x]}}' \
-		| translate -a <(cat {input.orthogroups} | grep Hs2 | awk '{{print $3"\t"$1}}') 1 | awk -v OFS="\t" '{{print $2,$1,$3}}' > {output}
-		"""
-
-########## COUNTERPART WITH THE AVERAGE SEQ SIM AMONG VERTEBRATES
-rule compute_average_measure_by_human_gene:
-	input:
-		measure_file = PARALOG_SETS_DIR+"/pairwise_{measure}/all_pairwise_{measure}.txt"
-	output:
-		DATA+"/phastCons_scores/Hs2-ALL_genes-{measure}.tab"
-	params:
-		vertebrata = VERTEBRATA,
-	run:
-		import pandas as pd
-		import re
-
-		#Read input
-		measure_df = pd.read_table(str(input.measure_file), sep="\t", index_col=False, header=None, names=["OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", str(wildcards.measure)])
-
-		#Filter only for human comparisons
-		measure_vertebrate_df = measure_df.loc[(measure_df["Species1"]=="Hs2") & (measure_df["Species2"].isin(params.vertebrata))]
-		measure_vertebrate_df = measure_vertebrate_df.rename(columns={str(wildcards.measure) : str(wildcards.measure)+"_vertebrata"})
-		#For each GeneID and target species, compute the average of the target species paralogs
-		measure_vertebrate_mean_df = measure_vertebrate_df.groupby(["OG_ID", "Species1", "GeneID1", "Species2"]).mean().reset_index()
-		#For each GeneID, compute the average among target species
-		measure_vertebrate_mean_df = measure_vertebrate_mean_df.groupby(["OG_ID", "Species1", "GeneID1"]).mean().reset_index()
-		#Drop the species column
-		measure_vertebrate_mean_df = measure_vertebrate_mean_df.drop(columns=["Species1"])
-
-		#Save to output
-		measure_vertebrate_mean_df.to_csv(str(output), sep="\t", header=False, index=False, na_rep="NA")

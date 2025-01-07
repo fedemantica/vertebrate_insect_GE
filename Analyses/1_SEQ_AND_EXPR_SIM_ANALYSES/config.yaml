@@ -2,18 +2,13 @@ general_paths:
   data: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data"
   src: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/src"
   conda_envs: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/src/conda_envs"
-  nobackup_dir: "/no_backup/mirimia/fmantica/vertebrate_insects_GE"
 
 paths:
   general_patterns: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/general_patterns"
-  gtf_ref_dir: "/users/mirimia/fmantica/projects/bilaterian_GE/data/DB/corrected_gtf/All_version2/ref_gene_entries"
-  database: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/DB"
   paralog_sets_dir: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets"
 
 tools:
   get_gmt_files: "./bin/get_gmt_files.py"
-  get_start_stop_info: "./bin/get_start_stop_info.py"
-  get_CDS_exons: "./bin/get_CDS_exons.py"
   transfer_GO_sets: "./bin/transfer_GO_sets.R"
 
 variables:
