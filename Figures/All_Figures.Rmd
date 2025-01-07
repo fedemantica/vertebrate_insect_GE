@@ -32,11 +32,14 @@ library(ggtree)
 library(car)
 library(fgsea)
 library(pals)
+library(paletteer)
+library(ggpubr)
+library(ggforce)
 
 #### Set directories
 home= "/nfs/users/mirimia/fmantica/"
 paralog_sets_dir = paste0(home, "projects/vertebrate_insect_GE/data/paralog_sets/")
-general_patterns_dir = paste0(home, "projects/vertebrate_insect_GE/data/general_patterns_v3/")
+general_patterns_dir = paste0(home, "projects/vertebrate_insect_GE/data/general_patterns/")
 GO_annot_dir = paste0(home, "projects/vertebrate_insect_GE/data/GO_annotations/backgrounds/")
 ts_gains_losses_dir = paste0(home, "projects/bilaterian_GE/data/ts_gains_losses/species_QN_5_TPM_v6/All_version2/")
 GSEA_dir = paste0(home, "projects/vertebrate_insect_GE/data/GSEA/")
@@ -54,9 +57,22 @@ ordered_tissues = c("Neural", "Testis", "Ovary", "Muscle", "Kidney", "Epithelial
 tissue_colors = c("Neural"="#1965B0", "Testis"="#AE76A3", "Ovary"="#882E72", "Muscle"="#4EB265", 
                     "Kidney"="#F7F056", "Epithelial"="#7BAFDE", "DigestiveTract"="#F1932D", "Adipose"="#DC050C", "None"="dimgray")
 
+species_colors=c("Hs2"="#00BFFF", "Mm2"="#159DFF", "Bt2"="#1873CD", "Mdo"="#174B8B", "Gga"="#3F3F8B", "Xtr"="#64398B", "Dre"="#82359D", "Cmi"="#9932CC", "Bla"="#2E8B57", "Sp2"="#96B12B", "Obi"="#FFFF00", "Sma"="#FFCC33", "Cdi"="goldenrod", "Bge"="burlywood2", "Ame"="#FF9966", "Tca"="#FF6600", "BmA"="#CC6600", "Aae"="#993300", "Eba"="firebrick3", "Dme"="red")
+
 ##### This is for the extra analysis
 chromosomes_colors = pals::cols25(24)
 names(chromosomes_colors) = paste0("chr", c(seq(1,22), "X", "Y"))
+
+##### Generate a dataframe with species and tree levels
+tree_levels_vector = c("Hs2"=1, "Euarchontoglires"=2, "Mm2"=1, "Eutheria"=3, "Bt2"=1, "Mammalia"=4,
+                    "Mdo"=1, "Amniota"=5, "Gga"=1, "Tetrapoda"=6, "Xtr"=1, "Euteleostomi"=7,
+                    "Dre"=1, "Vertebrata"=8, "Cmi"=1, "Chordata"=9, "Bla"=1, "Deuterostoma"=10, "Sp2"=1,
+                    "root" = 11,
+                    "Dme"=1, "Cyclorrapha"=2, "Eba"=1, "Diptera"=3, "Aae"=1, "Panorpidae"=4,
+                    "BmA"=1, "Oligoneoptera"=5, "Tca"=1, "Holometabola"=6, "Ame"=1, "Neoptera"=7,
+                    "Bge"=1, "Insecta"=8, "Cdi"=1, "Arthropoda"=9, "Sma"=1, "Protostoma"=10, "Obi"=1, "low_support"=NA)
+tree_levels_df = data.frame(ancestor = names(tree_levels_vector),
+                            tree_level = unname(tree_levels_vector))
 ```
 
 ```{r functions, echo=FALSE, message=FALSE, warning=FALSE, dependson="setup"}
@@ -156,23 +172,23 @@ print(panel_DE)
 input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
 input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
 
-combined_df = input_seq_sim_df %>%
-  full_join(input_expr_sim_df, by="OG_ID") %>%
-  select(-contains("delta"))
-
-vertebrata_df = combined_df %>%
-  select("OG_ID", contains("vertebrata")) %>%
-  rename_with(~str_remove(., '.vertebrata')) %>%
-  mutate(Clade="Vertebrata")
-
-insecta_df = combined_df %>%
-  select("OG_ID", contains("insecta")) %>%
-  rename_with(~str_remove(., '.insecta')) %>%
-  mutate(Clade="Insecta")
-
-final_df = vertebrata_df %>%
-  bind_rows(insecta_df) %>%
-  mutate(Clade = factor(Clade, levels=c("Vertebrata", "Insecta")))
+# combined_df = input_seq_sim_df %>%
+#   full_join(input_expr_sim_df, by="OG_ID") %>%
+#   select(-contains("delta"))
+# 
+# vertebrata_df = combined_df %>%
+#   select("OG_ID", contains("vertebrata")) %>%
+#   rename_with(~str_remove(., '.vertebrata')) %>%
+#   mutate(Clade="Vertebrata")
+# 
+# insecta_df = combined_df %>%
+#   select("OG_ID", contains("insecta")) %>%
+#   rename_with(~str_remove(., '.insecta')) %>%
+#   mutate(Clade="Insecta")
+# 
+# final_df = vertebrata_df %>%
+#   bind_rows(insecta_df) %>%
+#   mutate(Clade = factor(Clade, levels=c("Vertebrata", "Insecta")))
 
 #########################################
 ####### PLOT ############################
@@ -338,7 +354,7 @@ cor.test(insect_df$sequence_similarities, insect_df$expression_similarities)
 ```
 
 <!-- Panel A,B,C,D combined -->
-```{r joint_correlation_WITHN_and_BETWEEN_features_plots, echo=FALSE, warning=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=9, fig.height=8}
+```{r Fig2_combined_plots, echo=FALSE, warning=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=9, fig.height=8}
 combined_correlation_plots = ggpubr::ggarrange(plotlist=list(first_row, second_row), nrow=2, common.legend=TRUE, legend="right")
 print(combined_correlation_plots)
 
@@ -488,7 +504,7 @@ dev.off()
 ```
 
 <!-- Panel B -->
-```{r lethal_phenotypes_distribs, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=6, fig.height=5}
+```{r lethal_phenotypes_distribs, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=4.5, fig.height=5}
 #### The idea is to see if the most/least conserved genes are associated with lethal phenotypes, developmental defects or other types of illness
 #### I would expect the most conserved to be lethal, and the least conserved to be associated with "milder" phenotypes
 
@@ -533,7 +549,11 @@ phenotype_annot_df = phenotype_df %>%
 
 ### Filter only for the genes that are actually in the best-ancestrals (i.e., not looking at paralogs)
 orthogroup_file = paste0(paralog_sets_dir, "/selected_paralog_sets/Bilateria_conserved-", paralog_type, "_genes.txt")
-orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
+selected_OGs = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)$OG_ID
+orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID")) %>%
+  ### Revision added
+  filter(OG_ID %in% selected_OGs)
+
 ### This is redundant if we are using all genes, but I am keeping it to run the code with the selected paralog sets
 selected_genes = as.vector(orthogroups_df$GeneID)
 selected_phenotype_annot_df = phenotype_annot_df %>%
@@ -660,7 +680,10 @@ for (status in conservation_status) {
 ################################################
 
 orthogroup_file = paste0(paralog_sets_dir, "/selected_paralog_sets/Bilateria_conserved-ALL_genes.txt")
-orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
+selected_OGs = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)$OG_ID
+orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID")) %>%
+  ### Revision added
+  filter(OG_ID %in% selected_OGs)
 
 orthogroups_annot_df = orthogroups_df %>%
   ### Remove outgroups
@@ -802,9 +825,13 @@ taus_df = read.delim(taus_file, header=FALSE, col.names=c("OG_ID", "Species", "G
 
 ######### Filter for best ancestral orthologs
 orthogroup_file = paste0(paralog_sets_dir, "/selected_paralog_sets/Bilateria_conserved-ALL_genes.txt")
-orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
 #### This is redundant if we are using all genes, but I am keeping it to run the code with the selected paralog sets
-selected_genes = as.vector(orthogroups_df$GeneID) #this should be redundant if
+selected_OGs = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)$OG_ID
+orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID")) %>%
+  ### Revision added
+  filter(OG_ID %in% selected_OGs)
+
+selected_genes = as.vector(orthogroups_df$GeneID)
 
 taus_df = taus_df %>%
   filter(GeneID %in% selected_genes, 
@@ -871,7 +898,7 @@ for (my_clade in c("vertebrata", "insecta")) {
 ```
 
 <!-- Panel A,B,C,D combined -->
-```{r combine_feature_plots, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=8, fig.height=10}
+```{r Fig3_combined_plots, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=8, fig.height=10}
 groups_general_features_plot = plot_grid(panel_A, lethal_phenotype_status_plot, duplication_status_plot, tau_distribs_plot, ncol=2, nrow=2, align="hv", axis="tb")
 print(groups_general_features_plot)
 
@@ -1019,8 +1046,8 @@ dev.off()
 
 <!-- Panel B,C -->
 ```{r common_genes_GOs, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=12, fig.height=8}
-####### I need one annotation file in gtm format where the transfer is done exclusively considering the best-hit genes
-#######
+####### I need one annotation file in gmt format where the transfer is done exclusively considering the best-hit genes
+### In the end I think I am considering transfers from the human genes in each set
 
 ##############################################
 ######## INPUT ###############################
@@ -1139,7 +1166,7 @@ for (status in conservation_status) {
 ```
 
 <!-- Panel A,B,C,D -->
-```{r combine_plots_Fig4, echo=FALSE, warning=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=17.5, fig.height=22}
+```{r Fig4_combined_plots, echo=FALSE, warning=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=17.5, fig.height=22}
 final_plot = plot_grid(combined_venn_diagrams, all_common_enrichments_plots, ncol=2, align="hv", rel_widths = c(0.5,1))
 
 #### Save to file
@@ -1198,7 +1225,7 @@ annotated_fgseaRes_sequence = fgseaRes_sequence %>%
 ######## Expression ############
 ranks_expression = as.vector(zscore_features_delta_df$expression_similarities_delta)
 names(ranks_expression) = as.vector(zscore_features_delta_df$OG_ID)
-fgseaRes_sequence = fgsea(pathways, ranks_sequence, minSize=50, maxSize=500)
+fgseaRes_expression = fgsea(pathways, ranks_expression, minSize=50, maxSize=500)
 
 annotated_fgseaRes_expression = fgseaRes_expression %>%
   left_join(GO_annot_df, by=c("pathway"="GO_ID")) %>%
@@ -1500,7 +1527,8 @@ vertebrate_fisher_input_df = annotated_all_ts_genes_df %>%
   mutate(Category = ifelse(Category != "Negative", "NotFast", "Fast")) %>%
   filter(Clade=="Vertebrata") %>%
   group_by(Tissue, Category) %>% 
-  mutate(Tot=n()) %>% ungroup() %>% 
+  mutate(Tot=n()) %>% 
+  ungroup() %>% 
   group_by(Category) %>% 
   mutate(TotCategory = n()) %>% 
   ungroup() %>%
@@ -1605,6 +1633,184 @@ all_fisher_results_expr_df = vertebrate_fisher_test_df %>%
          Tissue = factor(Tissue, levels=ordered_tissues))
 ```
 
+```{r fisher_test_seq_expr_bias_corrected, echo=FALSE, warning=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=10, fig.height=10}
+################################################
+########### LEADING EDGES ######################
+################################################
+
+prova_sequence = read.delim(paste0(GSEA_dir, paralog_type, "/sequence_similarities-GSEA_res.tab")) %>%
+  filter(padj <= 0.01)
+
+prova_expression = read.delim(paste0(GSEA_dir, paralog_type, "/expression_similarities-GSEA_res.tab")) %>%
+  filter(padj <= 0.01)
+
+
+##This depends on some previous chuncks
+leading_edges_sequence_positiveNES_df = data.frame(OG_ID = unique(unlist(subset(prova_sequence, NES > 0)$leadingEdge)), 
+                                       Feature = "sequence",
+                                       NES = "positive") %>%
+  separate_rows(OG_ID, sep=",")
+leading_edges_sequence_negativeNES_df = data.frame(OG_ID = unique(unlist(subset(prova_sequence, NES < 0)$leadingEdge)), 
+                                       Feature = "sequence",
+                                       NES = "negative") %>%
+  separate_rows(OG_ID, sep=",")
+leading_edges_expression_positiveNES_df = data.frame(OG_ID = unique(unlist(subset(prova_expression, NES > 0)$leadingEdge)), 
+                                       Feature = "expression",
+                                       NES = "positive") %>%
+  separate_rows(OG_ID, sep=",")
+leading_edges_expression_negativeNES_df = data.frame(OG_ID = unique(unlist(subset(prova_expression, NES < 0)$leadingEdge)), 
+                                       Feature = "expression",
+                                       NES = "negative") %>%
+  separate_rows(OG_ID, sep=",")
+
+################################################
+####### TS GENES ###############################
+################################################
+
+### Let's just try to look at the tissue-specificity of the single genes
+orthogroup_file = paste0(paralog_sets_dir, "selected_paralog_sets/Bilateria_conserved-", paralog_type, "_genes.txt")
+orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID")) %>%
+  mutate(Species = ifelse(Species=="BmA", "Bmo", Species))
+
+all_ts_genes_file = paste0(ts_gains_losses_dir, "Bilateria_conserved_orthogroups-All_genes-associated_tissues.tab")
+all_ts_genes_df = read.delim(all_ts_genes_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID", "Tau", "Tissue", "Top_tissue", "Expr_cutoff")) %>%
+  filter(Tau >= 0.75, Expr_cutoff=="YES_EXPR") %>%
+  separate_rows(Tissue, sep=";") %>%
+  #filter(Expr_cutoff=="YES_EXPR") %>%
+  select(GeneID, Tissue) %>%
+  right_join(orthogroups_df, by="GeneID") %>%
+  mutate(Tissue = ifelse(is.na(Tissue), "None", Tissue)) %>%
+  select(OG_ID, Species, GeneID, Tissue) %>%
+  ### Select only vertebrate and insect species
+  filter(Species %in% c(Vertebrata, Insecta)) %>%
+  mutate(Clade = ifelse(Species %in% Vertebrata, "Vertebrata", "Insecta"))
+
+################################################
+########### SEQUENCE FISHER ####################
+################################################
+
+#### Add the positive/negative label
+annotated_all_ts_genes_df = all_ts_genes_df %>%
+  mutate(Category = ifelse(OG_ID %in% leading_edges_sequence_positiveNES_df$OG_ID, "Positive", "None")) %>%
+  mutate(Category = ifelse(OG_ID %in% leading_edges_sequence_negativeNES_df$OG_ID, "Negative", Category)) %>%
+  mutate(Tissue = factor(Tissue, levels=rev(c("None", ordered_tissues))))
+
+######## VERTEBRATES
+vertebrate_fisher_input_df = annotated_all_ts_genes_df %>% 
+  filter(Tissue != "None") %>%
+  mutate(Category = ifelse(Category != "Negative", "NotFast", "Fast")) %>%
+  filter(Clade=="Vertebrata") %>%
+  group_by(Tissue, Category) %>% 
+  mutate(Tot=n()) %>% 
+  ungroup() %>% 
+  group_by(Category) %>% 
+  mutate(TotCategory = n()) %>% 
+  ungroup() %>%
+  select(Clade, Tissue, Category, Tot, TotCategory) %>% 
+  distinct() %>%
+  arrange(Tissue, Category) %>%
+  pivot_wider(names_from = Category, values_from = c(Tot, TotCategory), names_sep="_", values_fill=0)
+
+vertebrate_fisher_test_df = vertebrate_fisher_input_df %>%
+  rowwise() %>%
+  mutate(fisher_pvalue = fisher.test(matrix(c(Tot_Fast, TotCategory_Fast, Tot_NotFast, TotCategory_NotFast), nrow=2), 
+                                     alternative = "greater")$p.value) %>%
+  mutate(Significativity = ifelse(fisher_pvalue <= 0.05, "SIGN", "NO_SIGN"))
+
+
+######## INSECTS
+insect_fisher_input_df = annotated_all_ts_genes_df %>% 
+  filter(Tissue != "None") %>%
+  mutate(Category = ifelse(Category != "Positive", "NotFast", "Fast")) %>%
+  filter(Clade=="Insecta") %>%
+  group_by(Tissue, Category) %>% 
+  mutate(Tot=n()) %>% 
+  ungroup() %>% 
+  group_by(Category) %>% 
+  mutate(TotCategory = n()) %>% 
+  ungroup() %>%
+  select(Clade, Tissue, Category, Tot, TotCategory) %>% 
+  distinct() %>%
+  arrange(Tissue, Category) %>%
+  pivot_wider(names_from = Category, values_from = c(Tot, TotCategory), names_sep="_", values_fill=0)
+
+insect_fisher_test_df = insect_fisher_input_df %>%
+  rowwise() %>%
+  mutate(fisher_pvalue = fisher.test(matrix(c(Tot_Fast, TotCategory_Fast, Tot_NotFast, TotCategory_NotFast), nrow=2), 
+                                     alternative = "greater")$p.value) %>%
+  mutate(Significativity = ifelse(fisher_pvalue <= 0.05, "SIGN", "NO_SIGN"))
+
+######## ALL
+all_fisher_results_seq_df = vertebrate_fisher_test_df %>%
+  dplyr::bind_rows(insect_fisher_test_df) %>%
+  mutate(pvalue_to_plot = -log10(fisher_pvalue)) %>%
+  mutate(Clade = factor(Clade, levels=c("Vertebrata", "Insecta")),
+         Tissue = factor(Tissue, levels=ordered_tissues))
+
+################################################
+########### EXPRESSION FISHER ##################
+################################################
+
+#### Add the positive/negative label
+annotated_all_ts_genes_df = all_ts_genes_df %>%
+  mutate(Category = ifelse(OG_ID %in% leading_edges_expression_positiveNES_df$OG_ID, "Positive", "None")) %>%
+  mutate(Category = ifelse(OG_ID %in% leading_edges_expression_negativeNES_df$OG_ID, "Negative", Category)) %>%
+  mutate(Tissue = factor(Tissue, levels=rev(c("None", ordered_tissues))))
+
+######## VERTEBRATES
+vertebrate_fisher_input_df = annotated_all_ts_genes_df %>% 
+  filter(Tissue != "None") %>%
+  mutate(Category = ifelse(Category != "Negative", "NotFast", "Fast")) %>%
+  filter(Clade=="Vertebrata") %>%
+  #### Number of TS genes per tissue per category
+  group_by(Tissue, Category) %>% 
+  mutate(Tot=n()) %>% 
+  ungroup() %>% 
+  #### Total number pf TS genes per category
+  group_by(Category) %>% 
+  mutate(TotCategory = n()) %>% 
+  ungroup() %>%
+  select(Clade, Tissue, Category, Tot, TotCategory) %>% 
+  distinct() %>%
+  arrange(Tissue, Category) %>%
+  pivot_wider(names_from = Category, values_from = c(Tot, TotCategory), names_sep="_", values_fill=0)
+
+vertebrate_fisher_test_df = vertebrate_fisher_input_df %>%
+  rowwise() %>%
+  mutate(fisher_pvalue = fisher.test(matrix(c(Tot_Fast, TotCategory_Fast, Tot_NotFast, TotCategory_NotFast), nrow=2), 
+                                     alternative = "greater")$p.value) %>%
+  mutate(Significativity = ifelse(fisher_pvalue <= 0.05, "SIGN", "NO_SIGN"))
+
+
+######## INSECTS
+insect_fisher_input_df = annotated_all_ts_genes_df %>% 
+  filter(Tissue != "None") %>%
+  mutate(Category = ifelse(Category != "Positive", "NotFast", "Fast")) %>%
+  filter(Clade=="Insecta") %>%
+  group_by(Tissue, Category) %>% 
+  mutate(Tot=n()) %>% ungroup() %>% 
+  group_by(Category) %>% 
+  mutate(TotCategory = n()) %>% 
+  ungroup() %>%
+  select(Clade, Tissue, Category, Tot, TotCategory) %>% 
+  distinct() %>%
+  arrange(Tissue, Category) %>%
+  pivot_wider(names_from = Category, values_from = c(Tot, TotCategory), names_sep="_", values_fill=0)
+
+insect_fisher_test_df = insect_fisher_input_df %>%
+  rowwise() %>%
+  mutate(fisher_pvalue = fisher.test(matrix(c(Tot_Fast, TotCategory_Fast, Tot_NotFast, TotCategory_NotFast), nrow=2), 
+                                     alternative = "greater")$p.value) %>%
+  mutate(Significativity = ifelse(fisher_pvalue <= 0.05, "SIGN", "NO_SIGN"))
+
+######## ALL
+all_fisher_results_expr_df = vertebrate_fisher_test_df %>%
+  dplyr::bind_rows(insect_fisher_test_df) %>%
+  mutate(pvalue_to_plot = -log10(fisher_pvalue)) %>%
+  mutate(Clade = factor(Clade, levels=c("Vertebrata", "Insecta")),
+         Tissue = factor(Tissue, levels=ordered_tissues))
+```
+
 ```{r combine_results_fisher_test, echo=FALSE, warning=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=10, fig.height=10}
 ##################################################
 ############# TISSUE SPECIFICITY #################
@@ -1661,11 +1867,11 @@ all_fisher_pvalues_plot = ggplot(data=all_fisher_results_df, aes(x=Tissue, y=pva
 #print(all_fisher_pvalues_plot)
 
 differentially_evolving_plots = plot_grid(diff_genes_tau_plots, all_fisher_pvalues_plot, ncol=1, rel_heights = c(1, 0.7), align="v", axis="lr")
-#print(differentially_evolving_plots)
+print(differentially_evolving_plots)
 ```
 
 <!-- Panel A,B,C,D,E -->
-```{r combine_plots_Fig5, echo=FALSE, warning=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=17.5, fig.height=15}
+```{r Fig5_combined_plots, echo=FALSE, warning=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=17.5, fig.height=15}
 top_right_panel = plot_grid(leading_edges_sequence_plot, leading_edges_expression_plot, ncol=2, align="hv")
 right_panel = plot_grid(top_right_panel, differentially_evolving_plots, ncol=1, align="hv", rel_heights = c(0.4,1))
 
@@ -1673,9 +1879,9 @@ final_plot = plot_grid(NES_plots, right_panel, ncol=2, rel_widths=c(1,1), align=
 print(final_plot)
 
 ####### Save to file
-pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/ALL_genes/Fig5-v2.pdf", width=17.5, height=15)
-print(final_plot)
-dev.off()
+# pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/ALL_genes/Fig5-v2.pdf", width=17.5, height=15)
+# print(final_plot)
+# dev.off()
 ```
 
 
@@ -1711,9 +1917,444 @@ print(upset(fromList(all_paralog_types_list), order.by = "freq", text.scale = c(
 dev.off()
 ```
 
+<!-- Panel D -->
+<!-- This was added during the revision process, and manually integrated in the Figure -->
+```{r gene_conservation_by_group, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=6, fig.height=5}
+#### Barplots showing the number of species with at least one gene in each group
+
+##############################################
+######## EVOLVING GROUP ######################
+##############################################
+
+gene_number = 500
+conservation_status = c("most_conserved", "least_conserved")
+clades = c("vertebrata", "insecta")
+features = c("sequence_similarities", "expression_similarities")
+
+all_features_clade_conservation_df = data.frame()
+for (status in conservation_status) {
+  for (clade in clades) {
+    for (feature in features) {
+      input_file = paste0(general_patterns_dir, paralog_type, "/", feature, "/GO_enrichments/", feature, "-", gene_number, "_", clade, "_", status, "-", paralog_type, "_genes-GO_input.tab")
+      input_df = read.delim(input_file, header=FALSE, col.names=c("OG_ID")) %>%
+        mutate(Conservation=status,
+               Clade=clade,
+               Feature=feature)
+      #### Join to the final dataframe
+      all_features_clade_conservation_df = dplyr::bind_rows(all_features_clade_conservation_df, input_df)
+    }
+  }
+}
+
+################################################
+########### ORTHOGROUPS ########################
+################################################
+
+orthogroup_file = paste0(paralog_sets_dir, "/selected_paralog_sets/Bilateria_conserved-ALL_genes.txt")
+orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
+
+###### Selec only the orthogroups with at least two species per clade
+selected_orthogroups = orthogroups_df %>%
+  #### Filter only for the orthogroups that have at least two vertebrates and two insect species
+  filter(Species %in% c(Vertebrata, Insecta)) %>%
+  mutate(Clade = ifelse(Species %in% Vertebrata, "vertebrata", "insecta")) %>%
+  dplyr::select(OG_ID, Species, Clade) %>%
+  distinct() %>%
+  group_by(OG_ID, Clade) %>%
+  summarize(Tot_species = n()) %>%
+  ungroup() %>%
+  #### Select OG_ID-clades with at least two species
+  filter(Tot_species >= 2) %>%
+  group_by(OG_ID) %>%
+  summarize(Tot_clades = n()) %>%
+  #### Select only OG_ID where both clades have at least two species
+  filter(Tot_clades == 2) %>%
+  ungroup() %>%
+  .$OG_ID
+
+orthogroups_annot_df = orthogroups_df %>%
+  ### Remove outgroups
+  filter(Species %in% c(Vertebrata, Insecta)) %>%
+  ### Select only orthogroups with enough species
+  filter(OG_ID %in% selected_orthogroups) %>%
+  ### Add clade
+  mutate(Clade = ifelse(Species %in% Vertebrata, "vertebrata", "insecta")) %>%
+  ### Add number of species per clade with at least one gene
+  dplyr::select(OG_ID, Species, Clade) %>%
+  distinct() %>%
+  ungroup() %>%
+  group_by(OG_ID, Clade) %>%
+  summarize(Tot_species = n()) %>%
+  ungroup()
+
+all_features_clade_conservation_SPECIES_df = all_features_clade_conservation_df %>%
+  left_join(orthogroups_annot_df, by=c("OG_ID", "Clade")) %>%
+  mutate(Tot_species = factor(Tot_species, levels=seq(0,8)),
+         Clade = factor(Clade, levels=c("vertebrata", "insecta")))
+
+#### Add background
+all_features_clade_conservation_SPECIES_BACK_df = all_features_clade_conservation_SPECIES_df %>%
+  dplyr::bind_rows(orthogroups_annot_df %>% 
+                     mutate(Conservation = "background",
+                            Feature = "sequence_similarities",
+                            Tot_species = factor(Tot_species, levels=seq(0,8)),
+                            Clade = factor(Clade, levels=c("vertebrata", "insecta"))) %>%
+                     select(OG_ID, Conservation, Clade, Feature, Tot_species)) %>%
+    dplyr::bind_rows(orthogroups_annot_df %>% 
+                     mutate(Conservation = "background",
+                            Feature = "expression_similarities",
+                            Tot_species = factor(Tot_species, levels=seq(0,8)),
+                            Clade = factor(Clade, levels=c("vertebrata", "insecta"))) %>%
+                     select(OG_ID, Conservation, Clade, Feature, Tot_species)) %>%
+  mutate(Conservation = factor(Conservation, levels=c("least_conserved", "background", "most_conserved")),
+         Feature = factor(Feature, levels=c("sequence_similarities", "expression_similarities")))
+
+
+################################################
+########### PLOT ###############################
+################################################
+
+tot_species_plot = ggplot(data=all_features_clade_conservation_SPECIES_BACK_df, aes(x=Conservation, fill=Tot_species)) +
+  geom_bar(stat="count", position = position_fill(), color="black", size=0.2, alpha=0.9) +
+  scale_fill_brewer(palette="Greys") +
+  theme_bw() +
+  theme(axis.title = element_text(color="black", family="sans"),
+        axis.text.y = element_text(color="black", family="sans"),
+        axis.text.x = element_text(color="black", family="sans"),
+        strip.text = element_text(color="black", family="sans", face="bold"),
+        strip.background = element_blank()) +
+  scale_x_discrete(labels=c("Highly", "All", "Lowly")) +
+  xlab("Diversification status") +
+  ylab("Proportions") +
+  labs(fill="Species with\nconserved\ngenes") +
+  facet_grid(Feature ~ Clade, labeller = as_labeller(c(vertebrata="Vertebrata", insecta="Insecta", sequence_similarities="Seq sim", expression_similarities="Expr sim")))
+
+print(tot_species_plot)
+
+pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/revision/SupFig1d-v1.pdf", width=6, height=5)
+print(tot_species_plot)
+dev.off()
+
+##############################################
+######## STATISTICS ##########################
+##############################################
+statistics_input_df = all_features_clade_conservation_SPECIES_BACK_df %>% 
+  group_by(Conservation, Clade, Feature, Tot_species) %>% 
+  summarize(Tot=n()) %>%
+  ungroup()
+
+for (my_clade in c("vertebrata", "insecta")) {
+  for (my_conservation in c("least_conserved", "most_conserved")) {
+    for (my_feature in c("sequence_similarities", "expression_similarities")) {
+      #### Build inputs
+      contingency_table = statistics_input_df %>%
+        filter(Clade==my_clade, Conservation %in% c(my_conservation, "background"), Feature==my_feature) %>%
+        dplyr::select(Tot_species, Conservation, Tot) %>%
+        pivot_wider(names_from="Conservation", , values_from=c("Tot"), values_fill=0) %>%
+        column_to_rownames("Tot_species")
+      #### Perform fisher tests
+      if (my_conservation == "least_conserved") {my_alternative = "less"} else {my_alternative = "greater"}
+      print(paste0(my_clade, " ", my_conservation, " ", my_feature))
+      print(contingency_table)
+      print(fisher.test(contingency_table, simulate.p.value = TRUE, alternative=my_alternative))
+    }
+  }
+}
+```
 
 <!-- ################################ -->
 <!-- ########## Sup Figure 2 ######## -->
+<!-- ################################ -->
+
+<!-- Dme transfers figures -->
+```{r common_genes_GOs_Dme_transfers, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=12, fig.height=8}
+####### I need one annotation file in gmt format where the transfer is done exclusively considering the best-hit genes
+gene_number = 500
+conservation_status = c("most_conserved", "least_conserved")
+clades = c("vertebrata", "insecta")
+features = c("sequence_similarities", "expression_similarities")
+
+##############################################
+######## INPUT ###############################
+##############################################
+
+##### Annotation
+annotation_gmt_file = paste0(GO_annot_dir, "Bilateria_conserved-GO_transfers-", paralog_type, "_genes-Dme.gmt")
+token = upload_GMT_file(gmtfile = annotation_gmt_file)
+
+##### Background (all bilaterian-conserved orthogroups)
+annotation_txt_file = paste0(GO_annot_dir, "Bilateria_conserved-GO_transfers-", paralog_type, "_genes-Dme.txt")
+background_genes = read.delim(annotation_txt_file, col.names=c("OG_ID", "Species", "GeneID")) %>%
+  .$OG_ID %>%
+  unique()
+
+##############################################
+######## ENRICHMENTS #########################
+##############################################
+
+all_common_enrichments_df = data.frame()
+for (status in conservation_status) {
+  #### Genes
+  my_genes = common_OGs_by_speed_groups_df %>%
+    filter(Conservation==status) %>%
+    .$OG_ID
+  
+  #### Enrichments
+  custom_gp = gost(my_genes, organism = token, correction_method="fdr", custom_bg = background_genes, significant=FALSE)
+  common_res_df = custom_gp$result %>%
+    filter(significant=="TRUE") %>%
+    select(p_value, term_size, query_size, intersection_size, precision, recall, term_id, term_name) %>%
+    mutate(Category = status) %>%
+    filter(precision >= 0.05, intersection_size >= 5) %>%
+    arrange(p_value) %>%
+    head(20)
+  
+  #### Join to final dataframe
+  all_common_enrichments_df = all_common_enrichments_df %>%
+    dplyr::bind_rows(common_res_df)
+}
+
+all_common_enrichments_plot_input_df = all_common_enrichments_df %>%
+  mutate(term_name = str_to_title(gsub("_", " ", (substr(term_name,1,30))))) %>%
+  mutate(term_name = paste0(term_name, "_", row_number())) %>%
+  mutate(pvalue_to_plot = -log10(p_value),
+         term_name = factor(term_name, levels=rev(as.vector(term_name))),
+         Category = factor(Category, levels=c("most_conserved", "least_conserved")))
+
+all_common_enrichments_plots = ggplot(data=all_common_enrichments_plot_input_df, aes(y=term_name, x=pvalue_to_plot, size=pvalue_to_plot)) +
+  geom_point(shape=21, color="black", fill="firebrick") +
+  scale_size_continuous(range=c(5,15)) +
+  theme_bw() +
+  theme(axis.text = element_text(color="black"),
+        strip.text.y = element_text(angle=0)) +
+  #facet_wrap(~Category, ncol=1, scales="free")
+  ggforce::facet_col(facets=vars(Category), scales="free", space="free")
+
+print(all_common_enrichments_plots)
+```
+
+```{r save_common_genes_GOs, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions")}
+####### I need one annotation file in gtm format where the transfer is done exclusively considering the best-hit genes
+gene_number = 500
+conservation_status = c("most_conserved", "least_conserved")
+clades = c("vertebrata", "insecta")
+features = c("sequence_similarities", "expression_similarities")
+
+
+##############################################
+######## INPUT ###############################
+##############################################
+
+##### Annotation
+annotation_gmt_file = paste0(GO_annot_dir, "Bilateria_conserved-GO_transfers-", paralog_type, "_genes-Dme.gmt")
+token = upload_GMT_file(gmtfile = annotation_gmt_file)
+
+##### Background (all bilaterian-conserved orthogroups)
+annotation_txt_file = paste0(GO_annot_dir, "Bilateria_conserved-GO_transfers-", paralog_type, "_genes-Dme.txt")
+background_genes = read.delim(annotation_txt_file, col.names=c("OG_ID", "Species", "GeneID")) %>%
+  .$OG_ID %>%
+  unique()
+
+##############################################
+######## ENRICHMENTS #########################
+##############################################
+
+all_common_enrichments_df = data.frame()
+for (status in conservation_status) {
+  #### Genes
+  my_genes = common_OGs_by_speed_groups_df %>%
+    filter(Conservation==status) %>%
+    .$OG_ID
+  
+  #### Enrichments
+  custom_gp = gost(my_genes, organism = token, correction_method="fdr", custom_bg = background_genes, significant=FALSE)
+  common_res_df = custom_gp$result %>%
+    dplyr::select(-source_order, -parents) %>%
+    mutate(Category = status) %>%
+    arrange(p_value)
+  
+  #### Join to final dataframe
+  all_common_enrichments_df = all_common_enrichments_df %>%
+    dplyr::bind_rows(common_res_df)
+}
+
+##############################################
+######## SAVE TO TWO SEPARATE FILES ##########
+##############################################
+
+for (status in conservation_status) {
+  write.table(subset(all_common_enrichments_df, Category==status), 
+              paste0("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/GO_enrichments/", paralog_type, "/common_", status, "-GO_res-Dme.tab"), 
+              quote=FALSE, row.names=FALSE, col.names=TRUE, sep="\t")
+}
+```
+
+```{r save_GSEA_Dme, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions")}
+input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+
+features_delta_df = input_seq_sim_df %>%
+  inner_join(input_expr_sim_df, by="OG_ID") %>%
+  select(OG_ID, contains("delta")) 
+
+##### zscore inputs
+zscore_features_delta_df = features_delta_df %>%
+  mutate(sequence_similarities_delta = (sequence_similarities_delta - mean(features_delta_df$sequence_similarities_delta))/sd(features_delta_df$sequence_similarities_delta),
+         expression_similarities_delta = (expression_similarities_delta - mean(features_delta_df$expression_similarities_delta))/sd(features_delta_df$expression_similarities_delta))
+
+#################################################################
+####### COMPUTE FGSEA ON DELTAS #################################
+#################################################################
+
+######### Generate inputs ##########
+annotation_gmt_file = paste0(GO_annot_dir, "Bilateria_conserved-GO_transfers-", paralog_type, "_genes-Dme.gmt")
+annotation_txt_file = paste0(GO_annot_dir, "Bilateria_conserved-GO_transfers-", paralog_type, "_genes-Dme.txt")
+pathways = gmtPathways(annotation_gmt_file)
+
+GO_annot_df = read.delim(annotation_txt_file, header=FALSE, col.names=c("OG_ID", "GO_ID", "GO_name")) %>%
+  select(GO_ID, GO_name) %>%
+  distinct()
+
+######### Sequence ############
+ranks_sequence = as.vector(zscore_features_delta_df$sequence_similarities_delta)
+names(ranks_sequence) = as.vector(zscore_features_delta_df$OG_ID)
+fgseaRes_sequence = fgsea(pathways, ranks_sequence, minSize=50, maxSize=500)
+
+annotated_fgseaRes_sequence = fgseaRes_sequence %>%
+  left_join(GO_annot_df, by=c("pathway"="GO_ID")) %>%
+  arrange(desc(NES)) %>%
+  rowwise() %>%
+  distinct() %>%
+  mutate(leadingEdge =  paste(as.vector(leadingEdge), collapse = ','))
+
+######## Expression ############
+ranks_expression = as.vector(zscore_features_delta_df$expression_similarities_delta)
+names(ranks_expression) = as.vector(zscore_features_delta_df$OG_ID)
+fgseaRes_expression = fgsea(pathways, ranks_expression, minSize=50, maxSize=500)
+
+annotated_fgseaRes_expression = fgseaRes_expression %>%
+  left_join(GO_annot_df, by=c("pathway"="GO_ID")) %>%
+  arrange(desc(NES)) %>%
+  distinct() %>%
+  rowwise() %>%
+  mutate(leadingEdge =  paste(as.vector(leadingEdge), collapse = ','))
+
+#################################################################
+####### SAVE RESULTS TO TWO DIFFERENT FILES #####################
+#################################################################
+
+write.table(annotated_fgseaRes_sequence,
+            paste0(GSEA_dir, paralog_type, "/sequence_similarities-GSEA_res-Dme.tab"), 
+            quote=FALSE, row.names=FALSE, col.names=TRUE, sep="\t")
+
+write.table(annotated_fgseaRes_expression,
+            paste0(GSEA_dir, paralog_type, "/expression_similarities-GSEA_res-Dme.tab"), 
+            quote=FALSE, row.names=FALSE, col.names=TRUE, sep="\t")
+```
+
+```{r run_fgsea_Dme, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "function")}
+input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+
+features_delta_df = input_seq_sim_df %>%
+  inner_join(input_expr_sim_df, by="OG_ID") %>%
+  select(OG_ID, contains("delta")) 
+
+##### zscore inputs
+zscore_features_delta_df = features_delta_df %>%
+  mutate(sequence_similarities_delta = (sequence_similarities_delta - mean(features_delta_df$sequence_similarities_delta))/sd(features_delta_df$sequence_similarities_delta),
+         expression_similarities_delta = (expression_similarities_delta - mean(features_delta_df$expression_similarities_delta))/sd(features_delta_df$expression_similarities_delta))
+
+#################################################################
+####### COMPUTE FGSEA ON DELTAS #################################
+#################################################################
+
+######### Generate inputs ##########
+annotation_gmt_file = paste0(GO_annot_dir, "Bilateria_conserved-GO_transfers-", paralog_type, "_genes-Dme.gmt")
+annotation_txt_file = paste0(GO_annot_dir, "Bilateria_conserved-GO_transfers-", paralog_type, "_genes-Dme.txt")
+pathways = gmtPathways(annotation_gmt_file)
+
+GO_annot_df = read.delim(annotation_txt_file, header=FALSE, col.names=c("OG_ID", "GO_ID", "GO_name")) %>%
+  select(GO_ID, GO_name) %>%
+  distinct()
+
+######### Sequence ############
+ranks_sequence = as.vector(zscore_features_delta_df$sequence_similarities_delta)
+names(ranks_sequence) = as.vector(zscore_features_delta_df$OG_ID)
+fgseaRes_sequence = fgsea(pathways, ranks_sequence, minSize=50, maxSize=500)
+
+annotated_fgseaRes_sequence = fgseaRes_sequence %>%
+  left_join(GO_annot_df, by=c("pathway"="GO_ID")) %>%
+  filter(padj <= 0.01) %>%
+  arrange(desc(NES))
+
+######## Expression ############
+ranks_expression = as.vector(zscore_features_delta_df$expression_similarities_delta)
+names(ranks_expression) = as.vector(zscore_features_delta_df$OG_ID)
+fgseaRes_expression <- fgsea(pathways, ranks_expression, minSize=50, maxSize=500)
+
+annotated_fgseaRes_expression = fgseaRes_expression %>%
+  left_join(GO_annot_df, by=c("pathway"="GO_ID")) %>%
+  filter(padj <= 0.01) %>%
+  arrange(desc(NES))
+```
+
+```{r plot_GSEA_Dme, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.width=10, fig.height=10}
+####### INPUT 
+annotated_fgseaRes_sequence_to_plot = annotated_fgseaRes_sequence %>%
+  ungroup() %>%
+  filter(row_number() > max(row_number()) - 20 | row_number() <= 20)
+
+annotated_fgseaRes_expression_to_plot = annotated_fgseaRes_expression %>%
+  ungroup() %>%
+  filter(row_number() > max(row_number()) - 20 | row_number() <= 20)
+
+######### SEQUENCE / EXPRESSION GO plots
+combined_features_fgsea_df = annotated_fgseaRes_sequence_to_plot %>%
+  mutate(Feature = "sequence") %>%
+  dplyr::bind_rows(annotated_fgseaRes_expression_to_plot %>%
+                     mutate(Feature = "expression")) %>%
+  select(-leadingEdge) %>%
+  mutate(GO_name = str_to_title(gsub("_", " ", (substr(GO_name,1,50))))) %>%
+  mutate(pvalue_to_plot = -log10(padj)) %>%
+  group_by(Feature) %>%
+  arrange(desc(NES)) %>%
+  mutate(Feature=factor(Feature, levels=c("sequence", "expression")))
+
+combined_features_fgsea_df$GO_name = factor(combined_features_fgsea_df$GO_name, levels=rev(unique(combined_features_fgsea_df$GO_name)))
+
+NES_plots = ggplot(data=combined_features_fgsea_df, aes(x=NES, y=GO_name, fill=NES, size=pvalue_to_plot, shape=Feature)) +
+  geom_point(color="black", stroke=0.2) +
+  geom_vline(xintercept=0, linetype="dashed", color="black") +
+  scale_fill_gradient(low="darkorchid", high="tan3") +
+  scale_size_continuous(range=c(6,15)) +
+  scale_shape_manual(values=c("sequence"=21, "expression"=24)) +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text.x = element_text(color="black", size=10),
+        axis.text.y = element_text(color="black", size=10),
+        legend.position = "right") +
+  facet_grid(~Feature, scales = "free_y", space="free_y")
+
+print(NES_plots)
+
+# pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/alternative_Fig4D-v1.pdf", width=10, height=10)
+# print(NES_plots)
+# dev.off()
+```
+
+```{r SupFig2_combined_plots, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.width=12, fig.height=15}
+Dme_GO_enrichments = plot_grid(all_common_enrichments_plots, NES_plots, ncol=1, rel_heights = c(0.4, 1), align="hv", axis="lr")
+print(Dme_GO_enrichments)
+
+pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/Dme_GO_enrichments-v2.pdf", width=12, height=15)
+print(Dme_GO_enrichments)
+dev.off()
+```
+
+
+<!-- ################################ -->
+<!-- ########## Sup Figure 3 ######## -->
 <!-- ################################ -->
 
 <!-- Panel A,B -->
@@ -1884,7 +2525,7 @@ print(zscored_features_delta_plot)
 ```
 
 <!-- Panel A,B,C -->
-```{r combine_panels_SupFig2, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.width=12, fig.height=10}
+```{r SupFig3_combined_plots, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.width=12, fig.height=10}
 first_row = plot_grid(sequence_similarity_deltas_plot, expression_similarity_deltas_plot, features_delta_plot, 
                         ncol=3, axis="tb", rel_widths = c(0.84,0.84,1))
 
@@ -1907,12 +2548,15 @@ print(final_plots)
 dev.off()
 ```
 
+
 <!-- ################################ -->
-<!-- ########## Sup Figure 3 ######## -->
+<!-- ########## Sup Figure 4 ######## -->
 <!-- ################################ -->
 
-<!-- Panel A -->
-```{r compare_seq_cons_measures, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.height=5, fig.width=4}
+<!-- Alternative measures of sequence similarities --?
+
+<!-- Panel A: phast cons -->
+```{r correlations_with_phastcons, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.height=5, fig.width=4}
 input_seq_sim_df = read.delim("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/phastCons_scores/Hs2-ALL_genes-sequence_similarities.tab", header=FALSE,
                               col.names=c("OG_ID", "GeneID", "sequence_similarities_vertebrata"))
 input_phastcons_df = read.delim("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/phastCons_scores/Hs2-ALL_genes-phastCons_scores_average.tab", header=FALSE,
@@ -1923,20 +2567,21 @@ sequence_measures_df = input_seq_sim_df %>%
   left_join(input_phastcons_df %>%
               dplyr::select("GeneID", "PhastCons_vertebrata"), by="GeneID")
 
-sequence_measures_comparison_plot = ggplot(data=sequence_measures_df, aes(x=sequence_similarities_vertebrata, y=PhastCons_vertebrata)) +
+phastcons_sequence_measures_comparison_plot = ggplot(data=sequence_measures_df, aes(x=sequence_similarities_vertebrata, y=PhastCons_vertebrata)) +
   geom_hex(bins=100) +
   geom_smooth(method="lm", color="firebrick1") +
   annotation_custom(grobTree(textGrob(paste0("Pearsons's cor: ", 
                                              round(cor.test(sequence_measures_df$sequence_similarities_vertebrata, sequence_measures_df$PhastCons_vertebrata)$estimate, 3), 
                                              "\nPvalue: ", 
                                              round(cor.test(sequence_measures_df$sequence_similarities_vertebrata, sequence_measures_df$PhastCons_vertebrata)$p.value, 3)), 
-                                      x=0.05,  y=0.92, hjust=0), gp=gpar(fontsize=10))) +
+                                      x=0.6,  y=0.07, hjust=0), gp=gpar(fontsize=10))) +
   scale_fill_viridis_c(limits=c(1,10), oob = scales::squish, option="viridis") + #Everything 15 or higher will be represented in the same color
   theme_bw() +
   theme(axis.text = element_text(color="black"),
       axis.title = element_text(color="black"),
       panel.grid = element_line(color="white"),
       legend.position = "bottom",
+      panel.background = element_rect(fill = "#1C86EE33"),
       plot.title = element_text(color="black", face="bold", hjust=0.5, size=10)) +
   scale_y_continuous(limits=c(0,1)) +
   scale_x_continuous(limits=c(0,1)) +
@@ -1945,12 +2590,1139 @@ sequence_measures_comparison_plot = ggplot(data=sequence_measures_df, aes(x=sequ
   ylab("Average UCSC PhastCons with 100 vertebrates") +
   ggtitle("All human genes")
   
-print(sequence_measures_comparison_plot)
+print(phastcons_sequence_measures_comparison_plot)
 
-pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/ALL_genes/PhastCons_panel-v4.pdf", width=4, height=5)
-print(sequence_measures_comparison_plot)
+# pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/ALL_genes/PhastCons_panel-v4.pdf", width=4, height=5)
+# print(phastcons_sequence_measures_comparison_plot)
+# dev.off()
+```
+
+<!-- Panel B: dN/dS -->
+```{r correlations_with_dN_dS, echo=FALSE, message=FALSE, warning=FALSE, fig.width=8, fig.height=4}
+############################################################
+########### READ INPUTS SEQ SIM ############################
+############################################################
+
+######## Read orthogroups (to add the non-duplicated genes).
+orthogroups_file = paste0(paralog_sets_dir, "/selected_paralog_sets/Bilateria_conserved-ALL_genes.txt")
+orthogroups_df = read.delim(orthogroups_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
+
+######## Read in sequence similarities by gene
+all_sequence_similarity_file = "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets/pairwise_sequence_similarities/all_pairwise_sequence_similarities.txt"
+all_sequence_similarity_df = read.delim(all_sequence_similarity_file, header=FALSE, col.names=c("OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", "Seq_sim"))
+
+############################################################
+########### UPLOAD DN_DS INPUTS ############################
+############################################################
+
+human_dn_ds_df = data.frame()
+for (target_species in c("Mm2", "Bt2", "Mdo")) {
+  input_file = paste0(home, "projects/vertebrate_insect_GE/data/DB/dN_dS_info/Hs2_", target_species, "-dN_dS.txt")
+  input_df = read.delim(input_file, header=FALSE, col.names=c("GeneID", "Target_geneID", "dN", "dS", "dN_dS_ratio")) %>%
+    mutate(Target_species = target_species)
+  ##### Join to final dataframe
+  human_dn_ds_df = human_dn_ds_df %>%
+    dplyr::bind_rows(input_df)
+}
+
+############################################################
+###########  COMBINE WITH SEQUENCE SIMILARITY ##############
+############################################################
+human_dn_ds_seq_sim_df = human_dn_ds_df %>%
+  left_join(all_sequence_similarity_df %>%
+              dplyr::select(GeneID1, Species2, GeneID2, Seq_sim), by=join_by("GeneID"=="GeneID1", "Target_geneID"=="GeneID2", "Target_species"=="Species2")) %>%
+  ### remove genes that are not in the bilaterian conserved (hence, no average_seq conservation)
+  filter(!(is.na(Seq_sim))) %>%
+  mutate(dN_dS_ratio = ifelse(dN_dS_ratio > 1.5, 1.5, dN_dS_ratio)) %>%
+  mutate(Target_species = factor(Target_species, levels=ordered_species))
+
+############# Get correlation dataframe
+correlations_df = data.frame()
+for (target_species in c("Mm2", "Bt2", "Mdo")) {
+  subsetted_df = human_dn_ds_seq_sim_df %>% filter(Target_species == target_species)
+  cor_value = round(unname(cor.test(subsetted_df$Seq_sim, subsetted_df$dN_dS_ratio, method="pearson")$estimate), 3)
+  cor_pvalue = round(unname(cor.test(subsetted_df$Seq_sim, subsetted_df$dN_dS_ratio, method="pearson")$p.value), 3)
+  correlations_df = correlations_df %>%
+    dplyr::bind_rows(data.frame(Target_species = target_species,
+                                Cor_value = cor_value, 
+                                Cor_pvalue = cor_pvalue)) %>%
+    mutate(Target_species = factor(Target_species, levels=ordered_species))
+}
+
+
+############################################################
+########## PLOT ############################################
+############################################################
+
+dNdS_sequence_measures_comparison_plot = ggplot(data=human_dn_ds_seq_sim_df, aes(x=Seq_sim, y=dN_dS_ratio)) +
+  geom_hex(bins=100) +
+  geom_smooth(method="lm", color="firebrick1") +
+  geom_text(data=correlations_df, aes(x=0.2, y=1.4, label=paste0("Cor: ", Cor_value, "\nP: ", Cor_pvalue)), size=3) +
+  scale_fill_viridis_c(limits=c(1,10), oob = scales::squish, option="viridis") + #Everything 15 or higher will be represented in the same color
+  theme_bw() +
+  theme(axis.text = element_text(color="black"),
+      axis.title = element_text(color="black"),
+      panel.grid = element_line(color="white"),
+      legend.position = "bottom",
+      panel.background = element_rect(fill = "#1C86EE33"),
+      plot.title = element_text(color="black", face="bold", hjust=0.5, size=10)) +
+  scale_x_continuous(limits=c(0,1)) +
+  xlab("Pairwise sequence similarity") +
+  ylab("Pairwise dN/dS ratio") +
+  ggtitle("All human genes") +
+  facet_wrap(~Target_species)
+  
+print(dNdS_sequence_measures_comparison_plot)
+
+# pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/All_dN_dS_ratios-pairwises.pdf", width=8, height=4)
+# print(dNdS_sequence_measures_comparison_plot)
+# dev.off()
+```
+
+<!-- Combine panels A,B -->
+```{r SupFig4_combined_plots, echo=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=6}
+plot_grid(phastcons_sequence_measures_comparison_plot, dNdS_sequence_measures_comparison_plot, ncol=2, rel_widths = c(0.6,1),
+          align="hv", axis="tblr")
+```
+
+<!-- ################################ -->
+<!-- ###### Sup Figure 5 ############ -->
+<!-- ################################ -->
+
+<!-- Panel B-G -->
+```{r comparisons_blosum_sequence_similarities, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "function"), fig.width=18, fig.height=15}
+
+##########################################
+######## READ INPUTS #####################
+##########################################
+
+scoring_systems = c("blosum62_maxmin", "blosum45_maxmin", "original")
+batches_number = 718
+test_batches = seq(1, batches_number)
+
+#### blosum62_maxmin scoring system
+scoring_system = scoring_systems[1]
+input_file = paste0(paralog_sets_dir, "pairwise_sequence_similarities_", scoring_system, "/all_pairwise_sequence_similarities.txt")
+first_scoring_system_df = read.delim(input_file, header=FALSE, col.names=c("OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", paste0("Seq_sim_", scoring_system)))
+
+#### blosum45_maxmin scoring system
+scoring_system = scoring_systems[2]
+input_file = paste0(paralog_sets_dir, "pairwise_sequence_similarities_", scoring_system, "/all_pairwise_sequence_similarities.txt")
+second_scoring_system_df = read.delim(input_file, header=FALSE, col.names=c("OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", paste0("Seq_sim_", scoring_system)))
+
+#### original sequence similarity
+input_file = paste0(paralog_sets_dir, "pairwise_sequence_similarities/all_pairwise_sequence_similarities.txt")
+original_scoring_system_df = read.delim(input_file, header=FALSE, col.names=c("OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", "Seq_sim_original")) 
+
+#### join dataframes
+all_scoring_systems_df = first_scoring_system_df %>%
+  full_join(second_scoring_system_df, by=c("OG_ID", "Species1", "Species2", "GeneID1", "GeneID2")) %>%
+  full_join(original_scoring_system_df, by=c("OG_ID", "Species1", "Species2", "GeneID1", "GeneID2")) %>%
+  #### Select pairs of only vertebrates or only insects [This should have been done already, in principle]
+  filter((Species1 %in% Vertebrata & Species2 %in% Vertebrata) | ((Species1 %in% Insecta & Species2 %in% Insecta))) %>%
+  mutate(Clade = ifelse(Species1 %in% Vertebrata, "Vertebrata", "Insecta"))
+
+##########################################
+######## PLOT ############################
+##########################################
+#### Comparison at the gene level
+
+### select all 3 combos of scoring systems
+scoring_systems_combos_df = data.frame(t(combn(paste0("Seq_sim_", scoring_systems), 2)))
+colnames(scoring_systems_combos_df) = c("first", "second")
+
+comparison_plots = list()
+i = 1
+for (index in seq(1, nrow(scoring_systems_combos_df))) {
+  plot_input_df = all_scoring_systems_df[,c("OG_ID", "Clade", "Species1", "Species2", "GeneID1", "GeneID2", scoring_systems_combos_df[index,"first"], scoring_systems_combos_df[index,"second"])]
+  colnames(plot_input_df) = c("OG_ID", "Clade", "Species1", "Species2", "GeneID1", "GeneID2", "Seq_sim_system1", "Seq_sim_system2")
+
+  #####################
+  ### GENE PAIRS ######
+  #####################
+  
+  gene_pairs_seq_sim_cor_plot = ggplot(data=plot_input_df, aes(x=Seq_sim_system1, y=Seq_sim_system2)) +
+    #geom_point(alpha=0.5, color="steelblue2") +
+    geom_hex(bins=100, alpha=0.9) +
+    #geom_smooth(method="lm", color="red") +
+    geom_abline(intercept = 0, slope = 1, linetype="dashed", color="red", size=1.5) +
+    scale_fill_viridis_c(limits=c(1,50), oob = scales::squish) +
+    theme_bw() +
+    theme(axis.text = element_text(color="black"),
+          axis.title = element_text(color="black"),
+          plot.title = element_text(color="black", face="bold", hjust=00.5)) +
+    xlab(scoring_systems_combos_df[index,"first"]) +
+    ylab(scoring_systems_combos_df[index,"second"]) +
+    coord_fixed(xlim=c(0,1), ylim=c(0,1)) +
+    ggtitle("Gene pairs level") +
+    facet_wrap(~Clade)
+  
+  ###############################
+  ###### GENES - SPECIES ########
+  ###############################
+    
+  all_scoring_systems_averages_by_gene_species_df = plot_input_df %>%
+    group_by(OG_ID, Clade, Species1, Species2, GeneID1) %>%
+    summarize(Seq_sim_system1_average = mean(Seq_sim_system1),
+              Seq_sim_system2_average = mean(Seq_sim_system2)) %>%
+    ungroup()
+  
+  gene_species_seq_sim_cor_plot = ggplot(data=all_scoring_systems_averages_by_gene_species_df, aes(x=Seq_sim_system1_average, y=Seq_sim_system2_average)) +
+    geom_hex(bins=100, alpha=0.9) +
+    geom_abline(intercept = 0, slope = 1, linetype="dashed", color="red") +
+    scale_fill_viridis_c(limits=c(1,50), oob = scales::squish) +
+    theme_bw() +
+    theme(axis.text = element_text(color="black"),
+          axis.title = element_text(color="black"),
+          plot.title = element_text(color="black", face="bold", hjust=0.5)) +
+    xlab(scoring_systems_combos_df[index,"first"]) +
+    ylab(scoring_systems_combos_df[index,"second"]) +
+    coord_fixed(xlim=c(0,1), ylim=c(0,1)) +
+    ggtitle("Gene vs target species level") +
+    facet_wrap(~Clade)
+    
+  ###########################
+  ########## GENE ###########
+  ###########################
+    
+  all_scoring_systems_averages_by_gene_df = all_scoring_systems_averages_by_gene_species_df %>%
+    group_by(OG_ID, Clade, Species1, GeneID1) %>%
+    summarize(Seq_sim_system1_average = mean(Seq_sim_system1_average),
+              Seq_sim_system2_average = mean(Seq_sim_system2_average)) %>%
+    ungroup()
+  
+  gene_seq_sim_cor_plot = ggplot(data=all_scoring_systems_averages_by_gene_df, aes(x=Seq_sim_system1_average, y=Seq_sim_system2_average)) +
+    geom_hex(bins=100, alpha=0.9) +
+    geom_abline(intercept = 0, slope = 1, linetype="dashed", color="red") +
+    scale_fill_viridis_c(limits=c(1,50), oob = scales::squish) +
+    theme_bw() +
+    theme(axis.text = element_text(color="black"),
+          axis.title = element_text(color="black"),
+          plot.title = element_text(color="black", face="bold", hjust=0.5)) +
+    xlab(scoring_systems_combos_df[index,"first"]) +
+    ylab(scoring_systems_combos_df[index,"second"]) +
+    coord_fixed(xlim=c(0,1), ylim=c(0,1)) +
+    ggtitle("Gene level") +
+    facet_wrap(~Clade)
+    
+  ###########################
+  ###### SPECIES ############
+  ###########################
+    
+  all_scoring_systems_averages_by_species_df = all_scoring_systems_averages_by_gene_df %>%
+    group_by(OG_ID, Clade, Species1) %>%
+    summarize(Seq_sim_system1_average = mean(Seq_sim_system1_average),
+              Seq_sim_system2_average = mean(Seq_sim_system2_average)) %>%
+    ungroup()
+  
+  species_seq_sim_cor_plot = ggplot(data=all_scoring_systems_averages_by_species_df, aes(x=Seq_sim_system1_average, y=Seq_sim_system2_average)) +
+    geom_hex(bins=100, alpha=0.9) +
+    geom_abline(intercept = 0, slope = 1, linetype="dashed", color="red") +
+    scale_fill_viridis_c(limits=c(1,50), oob = scales::squish) +
+    theme_bw() +
+    theme(axis.text = element_text(color="black"),
+          axis.title = element_text(color="black"),
+          plot.title = element_text(color="black", face="bold", hjust=0.5)) +
+    xlab(scoring_systems_combos_df[index,"first"]) +
+    ylab(scoring_systems_combos_df[index,"second"]) +
+    coord_fixed(xlim=c(0,1), ylim=c(0,1)) +
+    ggtitle("Species level") +
+    facet_wrap(~Clade)
+  
+  ###########################
+  ######### CLADE ###########
+  ###########################
+  
+  all_scoring_systems_averages_by_clade_df = all_scoring_systems_averages_by_species_df %>%
+    group_by(OG_ID, Clade) %>%
+    summarize(Seq_sim_system1_average = mean(Seq_sim_system1_average),
+              Seq_sim_system2_average = mean(Seq_sim_system2_average)) %>%
+    ungroup()
+  
+  clade_seq_sim_cor_plot = ggplot(data=all_scoring_systems_averages_by_clade_df, aes(x=Seq_sim_system1_average, y=Seq_sim_system2_average)) +
+    geom_hex(bins=100, alpha=0.9) +
+    geom_abline(intercept = 0, slope = 1, linetype="dashed", color="red") +
+    scale_fill_viridis_c(limits=c(1,50), oob = scales::squish) +
+    theme_bw() +
+    theme(axis.text = element_text(color="black"),
+          axis.title = element_text(color="black"),
+          plot.title = element_text(color="black", face="bold", hjust=0.5)) +
+    xlab(scoring_systems_combos_df[index,"first"]) +
+    ylab(scoring_systems_combos_df[index,"second"]) +
+    coord_fixed(xlim=c(0,1), ylim=c(0,1)) +
+    ggtitle("Clade level") +
+    facet_wrap(~Clade)
+  
+  comparison_plot = plot_grid(gene_pairs_seq_sim_cor_plot, gene_species_seq_sim_cor_plot, gene_seq_sim_cor_plot, species_seq_sim_cor_plot, clade_seq_sim_cor_plot, ncol=1)
+  comparison_plots[[i]] = comparison_plot
+  i = i+1
+}
+
+final_plot = plot_grid(plotlist = comparison_plots, ncol=3)
+print(final_plot)
+```
+
+<!-- Panel A -->
+```{r distributions_of_sequence_similarities_within_species, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "function"), fig.width=18, fig.height=4}
+##### The input was generated in the previous chunck
+#Plot violin distributions by species across scoring systems
+all_scoring_systems_long_df = all_scoring_systems_df %>%
+  pivot_longer(cols=c("Seq_sim_blosum62_maxmin", "Seq_sim_blosum45_maxmin", "Seq_sim_original"), names_to="scoring_system", values_to="seq_sim") %>%
+  mutate(Species1 = factor(Species1, levels=ordered_species)) %>%
+  mutate(scoring_system = factor(scoring_system, levels=c("Seq_sim_original", "Seq_sim_blosum62_maxmin", "Seq_sim_blosum45_maxmin")))
+
+species_seq_sim_distributions = ggplot(data=all_scoring_systems_long_df, aes(x=scoring_system, y=seq_sim, fill=Clade, alpha=scoring_system)) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_fill_manual(values=c("Vertebrata"="darkorchid", "Insecta"="tan3")) +
+  #scale_fill_viridis_d() +
+  ggtitle("Pairrwise sequence similarity by species") +
+  theme_bw() +
+  theme() +
+  theme(axis.text.y = element_text(color="black"),
+        axis.text.x = element_text(color="black", angle=30, hjust=1, vjust=1),
+        axis.title = element_text(color="black"),
+        plot.title = element_text(color="black", face="bold", hjust=0.5)) +
+  xlab("Scoring system") +
+  ylab("Sequence similarity") +
+  guides(alpha="none", fill="none") +
+  facet_wrap(~Species1, nrow=1)
+
+plot(species_seq_sim_distributions)
+```
+
+```{r SupFig5_combined_plots, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=18, fig.height=20}
+combined_plots_blosum_scores_comparisons = plot_grid(species_seq_sim_distributions, final_plot, rel_heights = c(0.25,1), align="hv", axis="tlrb", ncol=1)
+
+
+pdf(paste0("/users/mirimia/fmantica/projects/vertebrate_insect_GE/tmp_images/blosum_scores/blosum_scores_comparisons-v4.pdf"), width=18, height=20)
+print(combined_plots_blosum_scores_comparisons)
 dev.off()
 ```
+
+
+<!-- ################################ -->
+<!-- ###### Sup Figure 9 ############ -->
+<!-- ################################ -->
+
+<!-- Panel A,B,C,D -->
+```{r correlations_upon_species_removal, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=12, fig.height=7}
+####### Try subsetting by average number of paralogs in both vertebrates and insects:
+####### This will be correlation between the two features within each clade
+
+#########################################
+######## INPUT ##########################
+#########################################
+
+######## Read orthogroups (to add the non-duplicated genes).
+orthogroups_file = "/users/mirimia/fmantica/projects/bilaterian_GE/data/gene_sets/All_version2/STRICT/Bilateria/conserved/Bilateria_conserved_orthogroups-EXPR_genes.txt"
+orthogroups_df = read.delim(orthogroups_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
+
+######## Read in sequence similarities by gene
+all_sequence_similarity_file = "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets/pairwise_sequence_similarities/all_pairwise_sequence_similarities.txt"
+all_sequence_similarity_df = read.delim(all_sequence_similarity_file, header=FALSE, col.names=c("OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", "Seq_sim"))
+
+gene_species_pairwise_df = all_sequence_similarity_df %>%
+  dplyr::select(OG_ID, Species1, Species2, GeneID1, Seq_sim) %>%
+  rename("GeneID" = "GeneID1") %>%
+  dplyr::bind_rows(all_sequence_similarity_df %>%
+                     dplyr::select(OG_ID, Species2, Species1, GeneID2, Seq_sim) %>%
+                     rename("Species2"="Species1", "Species1"="Species2", "GeneID"="GeneID2")) %>%
+  group_by(OG_ID, Species1, GeneID, Species2) %>%
+  summarize(Average_seq_sim = mean(Seq_sim, na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(Clade = ifelse(Species1 %in% Vertebrata, "Vertebrata", "Insecta")) %>%
+  mutate(Clade1 = ifelse(Species2 %in% Vertebrata, "Vertebrata", "Insecta")) %>%
+  filter(Clade == Clade1) %>%
+  dplyr::select(-Clade1)
+
+#### Get the average values by clade
+original_values_df = gene_species_pairwise_df %>%
+  group_by(OG_ID, Clade, Species1, GeneID) %>%
+  summarize(Average_seq_sim = mean(Average_seq_sim, na.rm=TRUE)) %>%
+  ungroup() %>%
+  group_by(OG_ID, Clade, Species1) %>%
+  summarize(Average_seq_sim = mean(Average_seq_sim, na.rm=TRUE)) %>%
+  ungroup() %>%
+  group_by(OG_ID, Clade) %>%
+  summarize(Average_seq_sim = mean(Average_seq_sim, na.rm=TRUE)) %>%
+  ungroup() %>%
+  pivot_wider(id_cols="OG_ID", names_from="Clade", values_from=Average_seq_sim)
+
+##### Function to compute average seq sim
+compute_average_seq_sim = function(input_df, selected_species, clade_vector) {
+  final_df = input_df %>%
+    filter(!(Species1 %in% selected_species), !(Species2 %in% selected_species)) %>%
+    filter(Species1 %in% clade_vector, Species2 %in% clade_vector) %>%
+    group_by(OG_ID, Clade, Species1, GeneID) %>%
+    summarize(Average_seq_sim = mean(Average_seq_sim, na.rm=TRUE)) %>%
+    ungroup() %>%
+    group_by(OG_ID, Clade, Species1) %>%
+    summarize(Average_seq_sim = mean(Average_seq_sim, na.rm=TRUE)) %>%
+    ungroup() %>%
+    group_by(OG_ID, Clade) %>%
+    summarize(Simulated_average_seq_sim = mean(Average_seq_sim, na.rm=TRUE)) %>%
+    ungroup()
+  
+  return(final_df)
+}
+
+#########################################
+######## COR ONE MISSING SPECIES ########
+#########################################
+
+combs_to_test = c(ordered_species, 
+                  paste0(t(combn(Vertebrata, 2))[,1], "_", t(combn(Vertebrata, 2))[,2]),
+                  paste0(t(combn(Insecta, 2))[,1], "_", t(combn(Insecta, 2))[,2]),
+                  paste0(t(combn(Vertebrata, 3))[,1], "_", t(combn(Vertebrata, 3))[,2], "_", t(combn(Vertebrata, 3))[,3]),
+                  paste0(t(combn(Insecta, 3))[,1], "_", t(combn(Insecta, 3))[,2], "_", t(combn(Insecta, 3))[,3]))
+
+all_missing_species_res_df = data.frame()
+for (combo in combs_to_test) {
+  species = unlist(strsplit(combo, "_"))
+  
+  ##### If all species are vertebrates
+  if (all(species %in% Vertebrata)) {
+    my_clade = Vertebrata
+    subsetted_original_values_df = original_values_df %>%
+      dplyr::select(OG_ID, Vertebrata) %>%
+      rename(Original_average_seq_sim = Vertebrata)
+    
+  ##### If all species are insects
+  } else if (all(species %in% Insecta)) {
+    
+    my_clade = Insecta
+    subsetted_original_values_df = original_values_df %>%
+      dplyr::select(OG_ID, Insecta) %>%
+      rename(Original_average_seq_sim = Insecta)
+  }
+  
+  #### Compute seq sim without missing species 
+  missing_species_df = compute_average_seq_sim(gene_species_pairwise_df, species, my_clade)
+  #### Join to original dataframe
+  combined_values_df = subsetted_original_values_df %>%
+    left_join(missing_species_df, by="OG_ID")
+  
+  #### Compute correlations between the original values and the values the simulation
+  column_name = deparse(substitute(my_clade))
+  correlation_res = cor.test(x=combined_values_df$Original_average_seq_sim, y=combined_values_df$Simulated_average_seq_sim, method="pearson")
+  correlation_value = unname(correlation_res$estimate)
+  correlation_pvalue = round(unname(correlation_res$p.value),3)
+  
+  average_delta = mean(combined_values_df$Original_average_seq_sim - combined_values_df$Simulated_average_seq_sim, na.rm=TRUE)
+  median_delta = median(combined_values_df$Original_average_seq_sim - combined_values_df$Simulated_average_seq_sim, na.rm=TRUE)
+    
+  
+  #### Join to final_df
+  all_missing_species_res_df = all_missing_species_res_df %>%
+    dplyr::bind_rows(data.frame(Missing_species = combo,
+                                Average_delta = average_delta,
+                                Median_delta = median_delta,
+                                Cor_value = correlation_value,
+                                Cor_pvalue = correlation_pvalue))
+}
+
+
+#########################################
+####### PLOT ############################
+#########################################
+processed_all_missing_species_res_df = all_missing_species_res_df %>%
+  rowwise() %>%
+  mutate(Missing_species_number = length(unlist(str_split(Missing_species, "_")))) %>%
+  mutate(Missing_species_number = factor(Missing_species_number, levels=seq(1,3))) %>%
+  mutate(Clade = ifelse(all(unlist(str_split(Missing_species, "_")) %in% Vertebrata), "Vertebrata", "Insecta")) %>%
+  mutate(Clade = factor(Clade, levels=c("Vertebrata", "Insecta"))) %>%
+  mutate(Species_position = ifelse(grepl("Cdi|Cmi", Missing_species), "Last_species", "Other_species")) %>%
+  mutate(Species_position = factor(Species_position, levels=c("Other_species", "Last_species")))
+
+### I want distributions of correlations by Clade (columns) and number of missing species (rows)
+correlations_plots = ggplot(processed_all_missing_species_res_df, aes(x=Cor_value, fill=Clade)) +
+  geom_density(color="dimgray", alpha=0.7) +
+  scale_color_manual(values=c("Last_species"="firebrick1", "Other_species"="black")) +
+  scale_fill_manual(values=c("Vertebrata"="darkorchid", "Insecta"="tan3")) +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text = element_text(color="black"),
+        legend.position = "none") +
+  ggh4x::facet_grid2(Missing_species_number ~ Clade, scales="free_y", independent = "y")
+
+print(correlations_plots)
+
+median_deltas_plots = ggplot(processed_all_missing_species_res_df, aes(x=Median_delta, fill=Clade)) +
+  geom_density(color="dimgray", alpha=0.7) +
+  scale_color_manual(values=c("Last_species"="firebrick1", "Other_species"="black")) +
+  scale_fill_manual(values=c("Vertebrata"="darkorchid", "Insecta"="tan3")) +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text = element_text(color="black"),
+        legend.position = "none") +
+  ggh4x::facet_grid2(Missing_species_number ~ Clade, scales="free_y", independent = "y")
+
+print(median_deltas_plots)
+
+############## BOXPLOTS ##################
+reprocessed_all_missing_species_res_df = data.frame()
+for (species in ordered_species) {
+  ### Filter df
+  selected_df = processed_all_missing_species_res_df %>%
+    filter(grepl(species, Missing_species)) %>%
+    mutate(Focus_species = species)
+  ### Join to final_df
+  reprocessed_all_missing_species_res_df = reprocessed_all_missing_species_res_df %>%
+    dplyr::bind_rows(selected_df)
+}
+
+reprocessed_all_missing_species_res_df = reprocessed_all_missing_species_res_df %>%
+  mutate(Focus_species = factor(Focus_species, levels=ordered_species))
+  
+missing_species_correlations_boxplots = ggplot(data=reprocessed_all_missing_species_res_df, aes(x=Focus_species, y=Cor_value, fill=Focus_species)) +
+  geom_boxplot(alpha=0.8) +
+  scale_fill_manual(values=species_colors) +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text = element_text(color="black"),
+        legend.position = "none") +
+  facet_wrap(~Clade, scale="free_x")
+
+print(missing_species_correlations_boxplots)
+
+missing_species_median_delta_boxplots = ggplot(data=reprocessed_all_missing_species_res_df, aes(x=Focus_species, y=Median_delta, fill=Focus_species)) +
+  geom_boxplot(alpha=0.8) +
+  geom_hline(yintercept=0, linetype="dashed", color="black") +
+  scale_fill_manual(values=species_colors) +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text = element_text(color="black"),
+        legend.position = "none") +
+  facet_wrap(~Clade, scale="free_x")
+
+print(missing_species_median_delta_boxplots)
+
+############################################################
+############## COMBINE PLOTS ###############################
+############################################################
+
+species_removal_same_branch = plot_grid(correlations_plots, median_deltas_plots, missing_species_correlations_boxplots, missing_species_median_delta_boxplots, 
+          nrow=2, ncol=2, by_row=TRUE, rel_widths = c(1,1), rel_heights = c(1,0.8), align="hv", axis="tblr")
+
+print(species_removal_same_branch)
+```
+
+<!-- Panel E,F -->
+```{r correlations_upon_species_removal_different_branches, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions")}
+####### Try subsetting by average number of paralogs in both vertebrates and insects:
+####### This will be correlation between the two features within each clade
+
+#########################################
+######## INPUT ##########################
+#########################################
+
+######## Read orthogroups (to add the non-duplicated genes).
+orthogroups_file = "/users/mirimia/fmantica/projects/bilaterian_GE/data/gene_sets/All_version2/STRICT/Bilateria/conserved/Bilateria_conserved_orthogroups-EXPR_genes.txt"
+orthogroups_df = read.delim(orthogroups_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
+
+######## Read in sequence similarities by gene
+all_sequence_similarity_file = "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets/pairwise_sequence_similarities/all_pairwise_sequence_similarities.txt"
+all_sequence_similarity_df = read.delim(all_sequence_similarity_file, header=FALSE, col.names=c("OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", "Seq_sim"))
+
+gene_species_pairwise_df = all_sequence_similarity_df %>%
+  dplyr::select(OG_ID, Species1, Species2, GeneID1, Seq_sim) %>%
+  rename("GeneID" = "GeneID1") %>%
+  dplyr::bind_rows(all_sequence_similarity_df %>%
+                     dplyr::select(OG_ID, Species2, Species1, GeneID2, Seq_sim) %>%
+                     rename("Species2"="Species1", "Species1"="Species2", "GeneID"="GeneID2")) %>%
+  group_by(OG_ID, Species1, GeneID, Species2) %>%
+  summarize(Average_seq_sim = mean(Seq_sim, na.rm=TRUE)) %>%
+  ungroup() %>%
+  mutate(Clade = ifelse(Species1 %in% Vertebrata, "Vertebrata", "Insecta")) %>%
+  mutate(Clade1 = ifelse(Species2 %in% Vertebrata, "Vertebrata", "Insecta")) %>%
+  filter(Clade == Clade1)
+
+###########################################
+all_corresponding_combinations = vector()
+for (i in seq(1,3)) {
+  for (k in seq(1, length(Vertebrata))) {
+    new_combo = paste(c(Vertebrata[k:(k+i-1)], Insecta[k:(k+i-1)]), collapse="_")
+    all_corresponding_combinations = c(all_corresponding_combinations, new_combo)
+  }
+}
+all_corresponding_combinations = all_corresponding_combinations[grep("NA", all_corresponding_combinations, invert=TRUE)]
+
+######
+non_corresponding_combinations = vector()
+for (i in seq(1,3)) {
+  for (vert_index in seq(1, length(Vertebrata))) {
+    insect_indexes = seq(1, length(Insecta))[!(seq(1, length(Insecta)) %in% seq(vert_index, vert_index+i-1))]
+    for (insect_index in insect_indexes) {
+      new_combo = paste(c(Vertebrata[vert_index:(vert_index+i-1)], Insecta[insect_index:(insect_index+i-1)]), collapse="_")
+      non_corresponding_combinations = c(non_corresponding_combinations, new_combo)
+    }
+  }
+}
+
+non_corresponding_combinations = non_corresponding_combinations[grep("NA", non_corresponding_combinations, invert=TRUE)]
+
+#########################################
+####### PLOT ############################
+#########################################
+
+all_combos_correlations_df = data.frame()
+for (combo in c(all_corresponding_combinations, non_corresponding_combinations)) {
+  
+  selected_species = unlist(strsplit(combo, "_"))
+  
+  filtered_gene_species_pairwise_df = gene_species_pairwise_df %>%
+    filter(!(Species1 %in% selected_species), !(Species2 %in% selected_species)) %>%
+    group_by(OG_ID, Clade, Species1, GeneID) %>%
+    summarize(Average_seq_sim = mean(Average_seq_sim, na.rm=TRUE)) %>%
+    ungroup() %>%
+    group_by(OG_ID, Clade, Species1) %>%
+    summarize(Average_seq_sim = mean(Average_seq_sim, na.rm=TRUE)) %>%
+    ungroup() %>%
+    group_by(OG_ID, Clade) %>%
+    summarize(Average_seq_sim = mean(Average_seq_sim, na.rm=TRUE)) %>%
+    ungroup() %>%
+    pivot_wider(id_cols="OG_ID", names_from="Clade", values_from=Average_seq_sim)
+  
+  correlation_res = cor.test(x=filtered_gene_species_pairwise_df$Vertebrata, y=filtered_gene_species_pairwise_df$Insecta, method="pearson")
+  correlation_value = unname(correlation_res$estimate)
+  correlation_pvalue = round(unname(correlation_res$p.value),3)
+  
+  #### Join to final_df
+  all_combos_correlations_df = all_combos_correlations_df %>%
+    dplyr::bind_rows(data.frame(Missing_species = combo,
+                                Cor_value = correlation_value,
+                                Cor_pvalue = correlation_pvalue))
+  
+}
+
+processed_all_combos_correlations_df = all_combos_correlations_df %>%
+  mutate(Combo_type = ifelse(Missing_species %in% all_corresponding_combinations, "Corr", "NON_corr")) %>%
+  rowwise() %>%
+  mutate(Missing_species_number = length(unlist(str_split(Missing_species, "_")))) %>%
+  mutate(Missing_species_number = factor(Missing_species_number, levels=seq(1,6)))
+
+all_combos_correlations_plot = ggplot(data=processed_all_combos_correlations_df, aes(x=Combo_type, y=Cor_value, fill=Combo_type)) +
+  geom_jitter(alpha=0.7, color="dimgray") +
+  geom_boxplot(alpha=0.7) +
+  geom_hline(yintercept = 0.622, color="black", linetype="dashed") +
+  scale_fill_manual(values=c("Corr"="steelblue3", "NON_corr"="coral3")) +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text.y = element_text(color="black"),
+        axis.text.x = element_text(color="black"),
+        strip.text = element_text(color="black", face="bold"),
+        legend.position = "none") +
+  facet_wrap(~Missing_species_number) +
+  stat_compare_means(aes(group=Combo_type), method="wilcox.test") +
+  ylab("Inter-clade sequence similarity correlation") +
+  xlab("Species combinations") +
+  scale_x_discrete(labels=c("Corr"="Matching", "NON_corr"="Unmatched")) +
+  ylim(c(0,1))
+
+print(all_combos_correlations_plot)
+```
+
+<!-- Combine all panels -->
+```{r SupFig9_combined_plots, warning=FALSE, echo=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=12, fig.height=10}
+revision_figure = plot_grid(correlations_plots, median_deltas_plots, 
+                            missing_species_correlations_boxplots, missing_species_median_delta_boxplots, 
+                            NA, all_combos_correlations_plot,
+                            nrow=3, ncol=2, by_row=TRUE, rel_widths = c(1,1), rel_heights = c(1,0.8,1), align="hv", axis="tblr", labels=c("a","b", "c", "d", "e", "f"))
+
+plot(revision_figure)
+
+#### Save to file
+pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/Figures/revision/testing_phylogeny-v1.pdf", width=12, height=10)
+plot(revision_figure)
+dev.off()
+```
+
+<!-- ################################ -->
+<!-- ###### Sup Figure 10 ############ -->
+<!-- ################################ -->
+
+<!-- Panel A,B,C -->
+```{r plot_paralog_number, echo=FALSES, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=14, fig.height=4}
+######## I have to re-run everything using the fasta files from the corrected GTFs -.-
+#### 12, 7
+
+############################################################
+########### READ INPUTS ####################################
+############################################################
+
+######## Read orthogroups (to add the non-duplicated genes).
+orthogroups_file = "/users/mirimia/fmantica/projects/bilaterian_GE/data/gene_sets/All_version2/STRICT/Bilateria/conserved/Bilateria_conserved_orthogroups-EXPR_genes.txt"
+orthogroups_df = read.delim(orthogroups_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
+
+######## Read in sequence similarities by gene
+all_sequence_similarity_file = "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets/pairwise_sequence_similarities/all_pairwise_sequence_similarities.txt"
+all_sequence_similarity_df = read.delim(all_sequence_similarity_file, header=FALSE, col.names=c("OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", "Seq_sim"))
+
+gene_species_pairwise_df = all_sequence_similarity_df %>%
+  dplyr::select(OG_ID, Species1, Species2, GeneID1, Seq_sim) %>%
+  rename("GeneID" = "GeneID1") %>%
+  dplyr::bind_rows(all_sequence_similarity_df %>%
+                     dplyr::select(OG_ID, Species2, Species1, GeneID2, Seq_sim) %>%
+                     rename("Species2"="Species1", "Species1"="Species2", "GeneID"="GeneID2")) %>%
+  group_by(OG_ID, Species1, GeneID, Species2) %>%
+  summarize(Average_seq_sim = mean(Seq_sim, na.rm=TRUE)) %>%
+  ungroup()
+
+gene_average_sequence_similarity_df = gene_species_pairwise_df %>%
+  filter(Species1 %in% Vertebrata, Species2 %in% Vertebrata) %>%
+  dplyr::bind_rows(gene_species_pairwise_df %>%
+  filter(Species1 %in% Insecta, Species2 %in% Insecta)) %>%
+  group_by(OG_ID, Species1, GeneID) %>%
+  summarize(Seq_sim = mean(Average_seq_sim, na.rm=TRUE)) %>%
+  rename(Species = Species1)
+
+############################################################
+########## PROCESS #########################################
+############################################################
+
+#### Add single copy orthologs to properly compute the stats
+paralog_number_df = orthogroups_df %>%
+  group_by(OG_ID, Species) %>%
+  mutate(Paralog_number = n()-1) %>%
+  ungroup() %>%
+  filter(Species %in% ordered_species) %>%
+  mutate(Clade = ifelse(Species %in% Vertebrata, "Vertebrata", "Insecta")) %>%
+  mutate(Species = factor(Species, levels=ordered_species)) %>%
+  mutate(Clade = factor(Clade, levels=c("Vertebrata", "Insecta"))) %>%
+  mutate(Paralog_number = ifelse(Paralog_number >= 10, 10, Paralog_number))
+
+##########################################
+### Add sequence similarities by gene ####
+##########################################
+  
+paralog_number_sequence_similarity_df = paralog_number_df %>%
+  left_join(gene_average_sequence_similarity_df, by=c("OG_ID", "Species", "GeneID")) %>%
+  mutate(Species = factor(Species, levels=ordered_species)) %>%
+  mutate(Paralog_number = factor(Paralog_number, levels=seq(0,10)))
+  
+####################################################
+######### PLOT PARALOG NUMBER BY SPECIES ###########
+####################################################
+
+##### Stacked barplot with the origin of each paralogs
+paralog_number_stacked_barplots = ggplot(data=paralog_number_sequence_similarity_df, aes(x=Species, fill=Paralog_number)) +
+  geom_bar(stat="count", position = position_fill(), color="white", size=0.2, alpha=0.8) +
+  scale_fill_viridis_d() +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text.y = element_text(color="black"),
+        axis.text.x = element_text(color="black", angle=30, hjust=1, vjust=1),
+        legend.key.size = unit(5, "mm"),
+        plot.title = element_text(color="black", face="bold", hjust=0.5)) +
+  facet_wrap(~Clade, scale="free_x") +
+  ylab("Proportions") +
+  #ggtitle("Paralog number") +
+  labs(fill="Paralog\nnumber")
+
+print(paralog_number_stacked_barplots)
+
+
+####################################################
+######### PLOT SEQ SIM BY PARALOG NUMBER ###########
+####################################################
+
+##### Boxplots plotting sequence similarity of each paralog based on the duplication origin
+paralog_number_by_clade_boxplots = ggplot(data=paralog_number_sequence_similarity_df, aes(x=Paralog_number, y=Seq_sim, fill=Clade)) +
+  geom_boxplot(alpha=0.8, outlier.size=0.25) +
+  scale_fill_manual(values=c("Vertebrata"="darkorchid", "Insecta"="tan3")) +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text = element_text(color="black"),
+        plot.title = element_text(color="black", face="bold", hjust=0.5),
+        legend.position = "none"
+        ) +
+  #guides(fill="none") +
+  ylab("Sequence similarity") +
+  xlab("Paralog number") +
+  #ggtitle("By clade") +
+  facet_wrap(~Clade)
+
+print(paralog_number_by_clade_boxplots)
+
+subsetted_paralog_number_sequence_similarity_df = paralog_number_sequence_similarity_df %>%
+  filter(Species %in% c("Hs2", "Dme"))
+
+paralog_number_by_species_boxplots = ggplot(data=subsetted_paralog_number_sequence_similarity_df, aes(x=Paralog_number, y=Seq_sim, fill=Clade)) +
+  geom_boxplot(alpha=0.8, outlier.size=0.25) +
+  scale_fill_manual(values=c("Vertebrata"="darkorchid", "Insecta"="tan3")) +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text = element_text(color="black"),
+        legend.position = "none") +
+  #guides(fill="none") +
+  ylab("Sequence similarity") +
+  xlab("Paralog number") +
+  facet_wrap(~Species)
+
+print(paralog_number_by_species_boxplots)
+
+####################################################
+################### COMBINE PLOTS ##################
+####################################################
+combined_paralog_number_plots = plot_grid(paralog_number_stacked_barplots, paralog_number_by_clade_boxplots, paralog_number_by_species_boxplots, 
+          align="hv", ncol=3, rel_widths = c(1,0.85,0.85), labels=c("a", "b", "c"), axis="tb")
+
+print(combined_paralog_number_plots)
+```
+
+<!--Panel D: manual scheme -->
+
+<!-- Panel E,F,G,H -->
+```{r plot_paralog_origin, echo=FALSES, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=14, fig.height=7}
+######## I have to re-run everything using the fasta files from the corrected GTFs -.-
+
+############################################################
+########### READ INPUTS ####################################
+############################################################
+
+####### Also fix header (genes_right, NOT gene_right)
+all_dated_duplications_file = "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/dated_duplications/all_dated_duplications-lca_union_v1.tab"
+all_dated_duplications_df = read.delim(all_dated_duplications_file, header=TRUE, sep="\t")
+
+######## Read orthogroups (to add the non-duplicated genes).
+orthogroups_file = "/users/mirimia/fmantica/projects/bilaterian_GE/data/gene_sets/All_version2/STRICT/Bilateria/conserved/Bilateria_conserved_orthogroups-EXPR_genes.txt"
+orthogroups_df = read.delim(orthogroups_file, header=FALSE, col.names=c("orthogroup_ID", "Species", "GeneID"))
+species_geneID_df = orthogroups_df %>% dplyr::select(-orthogroup_ID)
+
+######## Read in sequence similarities by gene
+all_sequence_similarity_file = "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets/pairwise_sequence_similarities/all_pairwise_sequence_similarities.txt"
+all_sequence_similarity_df = read.delim(all_sequence_similarity_file, header=FALSE, col.names=c("OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", "Seq_sim"))
+
+gene_species_pairwise_df = all_sequence_similarity_df %>%
+  dplyr::select(OG_ID, Species1, Species2, GeneID1, Seq_sim) %>%
+  rename("GeneID" = "GeneID1") %>%
+  dplyr::bind_rows(all_sequence_similarity_df %>%
+                     dplyr::select(OG_ID, Species2, Species1, GeneID2, Seq_sim) %>%
+                     rename("Species2"="Species1", "Species1"="Species2", "GeneID"="GeneID2")) %>%
+  group_by(OG_ID, Species1, GeneID, Species2) %>%
+  summarize(Average_seq_sim = mean(Seq_sim, na.rm=TRUE)) %>%
+  ungroup()
+
+gene_average_sequence_similarity_df = gene_species_pairwise_df %>%
+  filter(Species1 %in% Vertebrata, Species2 %in% Vertebrata) %>%
+  dplyr::bind_rows(gene_species_pairwise_df %>%
+  filter(Species1 %in% Insecta, Species2 %in% Insecta)) %>%
+  group_by(OG_ID, Species1, GeneID) %>%
+  summarize(Seq_sim = mean(Average_seq_sim, na.rm=TRUE)) %>%
+  rename(Species = Species1)
+
+############################################################
+########## PROCESS #########################################
+############################################################
+
+#### Add single copy orthologs to properly compute the stats
+single_copy_selected_dup_df = all_dated_duplications_df %>%
+  dplyr::bind_rows(orthogroups_df %>%
+                     filter(!(GeneID %in% as.vector(all_dated_duplications_df$GeneID))) %>%
+                     mutate(lca = "Single",
+                            bootstrap_support = NA,
+                            tree_level = 0) %>%
+                     dplyr::select(orthogroup_ID, lca, bootstrap_support, GeneID, tree_level, Species)) %>%
+  #### Remove outgroups
+  filter(Species %in% ordered_species) %>%
+  mutate(Clade = ifelse(Species %in% Vertebrata, "Vertebrata", "Insecta")) %>%
+  mutate(factored_tree_level = factor(tree_level, seq(0,11))) %>%
+  mutate(Species = factor(Species, levels=ordered_species)) %>%
+  mutate(Clade = factor(Clade, levels=c("Vertebrata", "Insecta"))) %>%
+  rename(OG_ID = orthogroup_ID)
+  
+##########################################
+### Add sequence similarities by gene ####
+##########################################
+  
+integrated_sequence_similarity_df = single_copy_selected_dup_df %>%
+  left_join(gene_average_sequence_similarity_df, by=c("OG_ID", "Species", "GeneID")) %>%
+  mutate(Species = factor(Species, levels=ordered_species))
+
+####################################################################
+################### CHECK ONHOLOGS #################################
+####################################################################
+onholog_file = "/users/mirimia/fmantica/projects/bilaterian_GE/data/DB/onholog_info/Ohnologs-Hs2-V6-formatted.tab"
+human_onholog_df = read.delim(onholog_file, header=FALSE, col.names=c("Onholog_ID", "GeneID", "GeneName")) %>%
+  inner_join(single_copy_selected_dup_df, by="GeneID")
+
+all_onhologs_df = single_copy_selected_dup_df %>%
+  filter(OG_ID %in% as.vector(human_onholog_df$OG_ID)) %>%
+  filter(Clade=="Vertebrata")
+
+onholog_origin_stacked_barplots = ggplot(data=all_onhologs_df, aes(x=Species, fill=factored_tree_level)) +
+  geom_bar(stat="count", position = position_fill(), color="white", size=0.2, alpha=0.8) +
+  #scale_fill_paletteer_d("jcolors::pal12") +
+  scale_fill_viridis_d(na.value="dimgray") +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text.y = element_text(color="black"),
+        axis.text.x = element_text(color="black", angle=30, hjust=1, vjust=1),
+        legend.key.size = unit(5, "mm"),
+        plot.title = element_text(color="black", face="bold", hjust=0.5)) +
+  facet_wrap(~Clade, scale="free_x") +
+  #ggtitle("Paralog number") +
+  labs(fill="Paralog\norigin")
+
+print(onholog_origin_stacked_barplots)
+  
+####################################################
+######### PLOT PARALOG ORIGIN STATS ################
+####################################################
+
+paralog_origin_stacked_barplots = ggplot(data=single_copy_selected_dup_df, aes(x=Species, fill=factored_tree_level)) +
+  geom_bar(stat="count", position = position_fill(), color="white", size=0.2, alpha=0.8) +
+  #scale_fill_paletteer_d("jcolors::pal12") +
+  scale_fill_viridis_d(na.value="dimgray") +
+  #scale_fill_paletteer_d("ggthemes::Classic_Cyclic") +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text.y = element_text(color="black"),
+        axis.text.x = element_text(color="black", angle=30, hjust=1, vjust=1),
+        legend.key.size = unit(5, "mm"),
+        plot.title = element_text(color="black", face="bold", hjust=0.5)) +
+  facet_wrap(~Clade, scale="free_x") +
+  ylab("Proportions") +
+  #ggtitle("Paralog number") +
+  labs(fill="Paralog\norigin")
+
+print(paralog_origin_stacked_barplots)
+
+################################################################
+######### PLOT PARALOG ORIGIN BY CLADE AND SPECIES #############
+################################################################
+
+filtered_integrated_sequence_similarity_df = integrated_sequence_similarity_df %>%
+  filter(!(is.na(factored_tree_level)))
+
+clade_not_dup_median_df = filtered_integrated_sequence_similarity_df %>%
+  filter(tree_level==0) %>%
+  group_by(Clade) %>%
+  summarize(Median = median(Seq_sim, na.rm=TRUE))
+
+paralog_origin_by_clade_boxplots = ggplot(data=filtered_integrated_sequence_similarity_df, aes(x=factored_tree_level, y=Seq_sim, fill=Clade)) +
+  geom_boxplot(alpha=0.8, outlier.size = 0.25) +
+  geom_hline(data=clade_not_dup_median_df, aes(yintercept=Median), linetype="dashed", color="black") +
+  scale_fill_manual(values=c("Vertebrata"="darkorchid", "Insecta"="tan3")) +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text = element_text(color="black"),
+        plot.title = element_text(color="black", face="bold", hjust=0.5)
+        ) +
+  guides(fill="none") +
+  ylab("Sequence similarity") +
+  xlab("Paralog origin") +
+  #ggtitle("By clade") +
+  facet_wrap(~Clade)
+
+print(paralog_origin_by_clade_boxplots)
+
+subsetted_paralog_origin_sequence_similarity_df = filtered_integrated_sequence_similarity_df %>%
+  filter(Species %in% c("Hs2", "Dme"))
+
+species_not_dup_median_df = subsetted_paralog_origin_sequence_similarity_df %>%
+  filter(tree_level==0) %>%
+  group_by(Species) %>%
+  summarize(Median = median(Seq_sim, na.rm=TRUE))
+
+paralog_origin_by_species_boxplots = ggplot(data=subsetted_paralog_origin_sequence_similarity_df, aes(x=factored_tree_level, y=Seq_sim, fill=Clade)) +
+  geom_boxplot(alpha=0.8, outlier.size = 0.25) +
+  geom_hline(data=species_not_dup_median_df, aes(yintercept=Median), linetype="dashed", color="black") +
+  scale_fill_manual(values=c("Vertebrata"="darkorchid", "Insecta"="tan3")) +
+  theme_bw() +
+  theme(axis.title = element_text(color="black"),
+        axis.text = element_text(color="black")) +
+  guides(fill="none") +
+  ylab("Sequence similarity") +
+  xlab("Paralog origin") +
+  facet_wrap(~Species)
+
+print(paralog_origin_by_species_boxplots)
+
+
+####################################################################
+################### COMBINE PLOTS ##################################
+####################################################################
+
+combined_paralog_origin_plots = plot_grid(NA, NA, onholog_origin_stacked_barplots, paralog_origin_stacked_barplots, paralog_origin_by_clade_boxplots, paralog_origin_by_species_boxplots, 
+          align="hv", ncol=3, rel_widths = c(1,0.85,0.85), labels=c("d", NA, "e", "f", "g", "h"), axis="tblr", byrow=TRUE, rel_heights = c(0.8,1))
+print(combined_paralog_origin_plots)
+```
+
+<!-- Panel I,J -->
+```{r correlations_by_average_paralog_number, echo=FALSE, message=FALSE, fig.height=5, fig.width=14}
+####### Try subsetting by average number of paralogs in both vertebrates and insects:
+####### This will be correlation between the two features within each clade
+
+######## Read orthogroups (to add the non-duplicated genes).
+orthogroups_file = "/users/mirimia/fmantica/projects/bilaterian_GE/data/gene_sets/All_version2/STRICT/Bilateria/conserved/Bilateria_conserved_orthogroups-EXPR_genes.txt"
+orthogroups_df = read.delim(orthogroups_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
+
+############################################################
+###### AVERAGE NUMBER OF PARALOGS IN VERTS AND INSECTS #####
+############################################################
+average_paralog_number_df = orthogroups_df %>%
+  group_by(OG_ID, Species) %>%
+  mutate(Paralog_number = n()-1) %>%
+  ungroup() %>%
+  filter(Species %in% ordered_species) %>%
+  mutate(Clade = ifelse(Species %in% Vertebrata, "Vertebrata", "Insecta")) %>%
+  mutate(Paralog_number = ifelse(Paralog_number >= 10, 10, Paralog_number)) %>%
+  group_by(OG_ID, Clade) %>%
+  #### Average paralog number
+  summarize(Average_paralog_number = round(mean(Paralog_number, na.rm=TRUE)))
+
+wide_average_paralog_number_df = average_paralog_number_df %>%
+  pivot_wider(id_cols = "OG_ID", names_from="Clade", values_from = "Average_paralog_number")
+
+selected_pairs_df = data.frame(insecta_average_number = c(0, 1, 2, 3, 0, 0, 0, 0, 1, 1, 1, 2, 2, 3),
+                               vertebrata_average_number = c(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 3, 4, 4))
+
+#########################################
+######## INPUT ##########################
+#########################################
+raw_input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+raw_input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
+
+#seq_sim_correlation_plots_list = list()
+correlations_df = data.frame()
+all_input_seq_sim_df = data.frame()
+
+for (index in seq(1, nrow(selected_pairs_df))) {
+  vertebrata_value = selected_pairs_df$vertebrata_average_number[index]
+  insecta_value = selected_pairs_df$insecta_average_number[index]
+  
+  selected_orthogroups_vector = wide_average_paralog_number_df %>%
+    filter(Vertebrata==vertebrata_value, Insecta==insecta_value) %>%
+    .$OG_ID
+  
+  ##### Filter dataframe only for the orthogroups that are there
+  input_seq_sim_df = raw_input_seq_sim_df %>%
+    filter(OG_ID %in% selected_orthogroups_vector) %>%
+    mutate(Combo = paste0(vertebrata_value, ":", insecta_value))
+  
+  all_input_seq_sim_df = all_input_seq_sim_df %>%
+    dplyr::bind_rows(input_seq_sim_df)
+  
+  
+  ##### Correlations
+  cor_value = unname(round(cor.test(input_seq_sim_df$sequence_similarities_vertebrata, input_seq_sim_df$sequence_similarities_insecta, method="pearson")$estimate, 3))
+  cor_pvalue = unname(round(cor.test(input_seq_sim_df$sequence_similarities_vertebrata, input_seq_sim_df$sequence_similarities_insecta, method="pearson")$p.value, 3))
+  correlations_df = correlations_df %>%
+    dplyr::bind_rows(data.frame(Combo = paste0(vertebrata_value, ":", insecta_value),
+                                Cor_value = cor_value,
+                                Cor_pvalue = cor_pvalue))
+}
+  
+########################################################
+####### PLOT ###########################################
+########################################################
+
+### Filter only for cases with more than 10 observations
+filtered_input_seq_sim_df = all_input_seq_sim_df %>%
+  group_by(Combo) %>%
+  mutate(Tot_OG = n()) %>%
+  ungroup() %>%
+  filter(Tot_OG >= 10)
+
+filtered_correlations_df = correlations_df %>%
+  filter(Combo %in% as.vector(filtered_input_seq_sim_df$Combo))
+
+##########################
+######## DOT PLOTS #######
+##########################
+  
+seq_sim_correlation_plot =  ggplot(data=filtered_input_seq_sim_df, aes(x=sequence_similarities_vertebrata, y=sequence_similarities_insecta)) +
+  geom_hex(bins=100) +
+  geom_smooth(method="lm", color="firebrick1") +
+  geom_text(data=filtered_correlations_df, aes(x=0.2, y=0.92, label=paste0("Cor: ", Cor_value, "\nP: ", Cor_pvalue)), size=2) +
+  scale_fill_viridis_c(limits=c(1,10), oob = scales::squish) + #Everything 10 or higher will be represented in the same color
+  theme_bw() +
+  ggtitle("Average paralog number: Vertebrata:Insecta") +
+  theme(axis.text.y = element_text(color="black"),
+        axis.text.x = element_text(color="black", angle=30, hjust=1, vjust=1),
+        axis.title = element_blank(),
+        panel.grid = element_line(color="white"),
+        panel.background = element_rect(fill = "#1C86EE33"),
+        strip.background = element_blank(),
+        strip.text =  element_text(color="black", face="bold"),
+        plot.title = element_text(color="black", face="bold", hjust=0.5, size=10),
+        legend.position = "bottom") +
+  scale_y_continuous(limits=c(0,1)) +
+  scale_x_continuous(limits=c(0,1)) +
+  coord_fixed() +
+  facet_wrap(~Combo, nrow=2)
+
+print(seq_sim_correlation_plot)
+
+##########################
+######## HEATMAP #########
+##########################
+
+heatmap_input_df = correlations_df %>%
+  separate("Combo", c("Vertebrata", "Insecta"), sep=":", remove = FALSE) %>%
+  left_join(all_input_seq_sim_df %>% 
+             group_by(Combo) %>%
+             summarize(Tot_OG = n()) %>%
+             ungroup(), by="Combo") %>%
+  mutate(Cor_value = ifelse(Tot_OG < 10, NA, Cor_value)) %>%
+  mutate(Vertebrata = factor(Vertebrata, levels=seq(0,4))) %>%
+  mutate(Insecta = factor(Insecta, levels=seq(0,4))) %>%
+  filter(!(is.na(Cor_value)))
+  
+heatmap_df = ggplot(data=heatmap_input_df, aes(x=Vertebrata, y=Insecta, fill=Cor_value, size=Tot_OG)) +
+  geom_point(color="black", shape=21) +
+  scale_size_continuous(range=c(1,15)) +
+  scale_fill_gradient2(low = "dodgerblue3",   
+                       mid = "white",    
+                       high = "firebrick1",
+                       midpoint = 0.5,
+                       limits=c(0,1)) +
+  ggtitle("Inter-clade seq sim correlations") +
+  theme_bw() +
+  theme(axis.text = element_text(color="black"),
+      axis.title = element_text(color="black"),
+      plot.title = element_text(color="black", face="bold", hjust=0.5, size=10),
+      legend.position = "bottom",
+      legend.direction = "horizontal",
+      legend.box = "horizontal") +
+  #coord_fixed() +
+  labs(fill="Seq sim cor",
+       size="Tot OGs:") +
+  ylab("Insecta ~ Avg paralog num") +
+  xlab("Vertebrata ~ Avg paralog num")
+
+average_paralog_cor_plots = plot_grid(seq_sim_correlation_plot, heatmap_df, ncol=2, align="hv", axis="tb", rel_widths = c(1,0.4))
+
+# pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/Figures/revision/average_paralog_correlations-v1.pdf", width=14, height=5)
+# print(average_paralog_cor_plots)
+# dev.off()
+```
+
+<!-- Combined panels: A,B,C,G,H,I,J -->
+```{r SupFig10_combined_plots, warning=FALSE, message=FALSE, echo=FALSE, dependson=c("setup", "functions"), fig.width=15, fig.height=10}
+##### I integrated I,J manually because of the different overall proportions.
+all_combined_panels = plot_grid(paralog_number_stacked_barplots, paralog_number_by_clade_boxplots, paralog_number_by_species_boxplots,
+                                NA, NA, onholog_origin_stacked_barplots,
+                                paralog_origin_stacked_barplots, paralog_origin_by_clade_boxplots, paralog_origin_by_species_boxplots,
+                                align="hv", axis="tblr", ncol=3, rel_widths = c(1,0.9,0.9), byrow=TRUE,
+                                labels=c("a", "b", "c", "d", NA, "e", "f", "g", "h"))
+print(all_combined_panels)
+
+#### Save to file
+# pdf("/users/mirimia/fmantica/projects/vertebrate_insect_GE/Figures/revision/paralog_stats_fig-v2.pdf", width=15, height=10)
+# print(all_combined_panels)
+# dev.off()
+```
+
+
+<!-- Sup Figure 8-10 are generated with the blosum_scores Rmd -->
+
+<!-- ################################ -->
+<!-- ########## Sup Figure 11 ####### -->
+<!-- ################################ -->
+
+<!-- Panel A: manually generated (schematic) -->
 
 <!-- Panel B,C -->
 ```{r expression_correlation_and_euclidean_distance_distribs, echo=FALSE, warning=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=8, fig.height=3}
@@ -2376,7 +4148,7 @@ print(second_row)
 ```
 
 <!-- Panel B,C,D,E,F,G,H,I,J,K,L combined -->
-```{r combine_plots_SupFig3, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=17, fig.height=16}
+```{r SupFig11_combined_plots, echo=FALSE, message=FALSE, warning=FALSE, dependson=c("setup", "functions"), fig.width=17, fig.height=16}
 first_row = ggpubr::ggarrange(NA, expr_cor_joint_plot, expr_dist_joint_plot, ncol=3, align = "hv")
 second_row = ggpubr::ggarrange(plotlist=list(HK_expr_sim_plot, HK_expr_cor_plot, HK_expr_dist_plot), 
                                ncol=3, common.legend=TRUE, legend="right", align = "hv")
@@ -2395,354 +4167,4 @@ print(sup_fig3)
 dev.off()
 ```
 
-
-<!-- ################################ -->
-<!-- ######### BACKUP ############### -->
-<!-- ################################ -->
-
-```{r tissue_speficicity_expr_bias, echo=FALSE, warning=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=10, fig.height=10}
-#fig.width=12, fig.height=8
-#### Plot taus
-#Plot the taus in insects and vertebrates of genes in the leading edges as before (also compared to all genes)
-
-################################################
-########### ORTHOGROUPS AND TAUS ###############
-################################################
-taus_file = paste0(ts_gains_losses_dir, "Bilateria_conserved_orthogroups-All_genes-associated_tissues.tab")
-taus_df = read.delim(taus_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID", "Tau", "Associated_tissue", "Top_tissue", "Expr_cutoff"))
-
-######### Filter for best ancestral orthologs
-orthogroup_file = paste0(paralog_sets_dir, "selected_paralog_sets/Bilateria_conserved-", paralog_type, "_genes.txt")
-orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
-### Superflous, but keeping it for the version of selected paralogs
-selected_genes = as.vector(orthogroups_df$GeneID)
-
-taus_df = taus_df %>%
-  filter(GeneID %in% selected_genes, 
-         Species %in% c(Vertebrata, Insecta, "Bmo")) %>%
-  mutate(Clade = ifelse(Species %in% Vertebrata, "Vertebrata", "Insecta")) %>%
-  select(OG_ID, Clade, Tau)
-
-################################################
-########### LEADING EDGES ######################
-################################################
-
-##This depends on some previous chuncks
-leading_edges_sequence_positiveNES_df = data.frame(OG_ID = unique(unlist(subset(annotated_fgseaRes_sequence, NES > 0)$leadingEdge)), 
-                                       Feature = "sequence",
-                                       NES = "positive")
-leading_edges_sequence_negativeNES_df = data.frame(OG_ID = unique(unlist(subset(annotated_fgseaRes_sequence, NES < 0)$leadingEdge)), 
-                                       Feature = "sequence",
-                                       NES = "negative")
-leading_edges_expression_positiveNES_df = data.frame(OG_ID = unique(unlist(subset(annotated_fgseaRes_expression, NES > 0)$leadingEdge)), 
-                                       Feature = "expression",
-                                       NES = "positive")
-leading_edges_expression_negativeNES_df = data.frame(OG_ID = unique(unlist(subset(annotated_fgseaRes_expression, NES < 0)$leadingEdge)), 
-                                       Feature = "expression",
-                                       NES = "negative")
-
-################################################
-########### COMBINE TAUS AND LEADING EDGES #####
-################################################
-input_expr_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/expression_similarities/expression_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-
-annotated_input_expr_sim_df = input_expr_sim_df %>%
-  mutate(Category = ifelse(OG_ID %in% leading_edges_expression_positiveNES_df$OG_ID, "Positive", "None")) %>%
-  mutate(Category = ifelse(OG_ID %in% leading_edges_expression_negativeNES_df$OG_ID, "Negative", Category)) %>%
-  select(OG_ID, Category) %>%
-  left_join(taus_df, by="OG_ID") %>%
-  mutate(Clade = factor(Clade, levels=c("Vertebrata", "Insecta")))
-
-
-################################################
-####### TS GENES ###############################
-################################################
-
-### Let's just try to look at the tissue-specificity of the single genes
-orthogroup_file = paste0(paralog_sets_dir, "selected_paralog_sets/Bilateria_conserved-", paralog_type, "_genes.txt")
-orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID")) %>%
-  mutate(Species = ifelse(Species=="BmA", "Bmo", Species))
-
-all_ts_genes_file = paste0(ts_gains_losses_dir, "Bilateria_conserved_orthogroups-All_genes-associated_tissues.tab")
-all_ts_genes_df = read.delim(all_ts_genes_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID", "Tau", "Tissue", "Top_tissue", "Expr_cutoff")) %>%
-  filter(Tau <= 0.75, Expr_cutoff=="YES_EXPR") %>%
-  select(GeneID, Tissue) %>%
-  right_join(orthogroups_df, by="GeneID") %>%
-  mutate(Tissue = ifelse(is.na(Tissue), "None", Tissue)) %>%
-  select(OG_ID, Species, GeneID, Tissue) %>%
-  ### Select only vertebrate and insect species
-  filter(Species %in% c(Vertebrata, Insecta)) %>%
-  mutate(Clade = ifelse(Species %in% Vertebrata, "Vertebrata", "Insecta"))
-
-#### Add the positive/negative label
-annotated_all_ts_genes_df = all_ts_genes_df %>%
-  mutate(Category = ifelse(OG_ID %in% leading_edges_expression_positiveNES_df$OG_ID, "Positive", "None")) %>%
-  mutate(Category = ifelse(OG_ID %in% leading_edges_expression_negativeNES_df$OG_ID, "Negative", Category)) %>%
-  mutate(Tissue = factor(Tissue, levels=rev(c("None", ordered_tissues))))
-
-################################################
-########### FISHER TEST ########################
-################################################
-
-######## VERTEBRATES
-vertebrate_fisher_input_df = annotated_all_ts_genes_df %>% 
-  filter(Tissue != "None") %>%
-  mutate(Category = ifelse(Category != "Negative", "NotFast", "Fast")) %>%
-  filter(Clade=="Vertebrata") %>%
-  group_by(Tissue, Category) %>% 
-  mutate(Tot=n()) %>% ungroup() %>% 
-  group_by(Category) %>% 
-  mutate(TotCategory = n()) %>% 
-  ungroup() %>%
-  select(Clade, Tissue, Category, Tot, TotCategory) %>% 
-  distinct() %>%
-  arrange(Tissue, Category) %>%
-  pivot_wider(names_from = Category, values_from = c(Tot, TotCategory), names_sep="_", values_fill=0)
-
-vertebrate_fisher_test_df = vertebrate_fisher_input_df %>%
-  rowwise() %>%
-  mutate(fisher_pvalue = fisher.test(matrix(c(Tot_Fast, TotCategory_Fast, Tot_NotFast, TotCategory_NotFast), nrow=2), 
-                                     alternative = "greater")$p.value) %>%
-  mutate(Significativity = ifelse(fisher_pvalue <= 0.05, "SIGN", "NO_SIGN"))
-
-
-######## INSECTS
-insect_fisher_input_df = annotated_all_ts_genes_df %>% 
-  filter(Tissue != "None") %>%
-  mutate(Category = ifelse(Category != "Positive", "NotFast", "Fast")) %>%
-  filter(Clade=="Insecta") %>%
-  group_by(Tissue, Category) %>% 
-  mutate(Tot=n()) %>% ungroup() %>% 
-  group_by(Category) %>% 
-  mutate(TotCategory = n()) %>% 
-  ungroup() %>%
-  select(Clade, Tissue, Category, Tot, TotCategory) %>% 
-  distinct() %>%
-  arrange(Tissue, Category) %>%
-  pivot_wider(names_from = Category, values_from = c(Tot, TotCategory), names_sep="_", values_fill=0)
-
-insect_fisher_test_df = insect_fisher_input_df %>%
-  rowwise() %>%
-  mutate(fisher_pvalue = fisher.test(matrix(c(Tot_Fast, TotCategory_Fast, Tot_NotFast, TotCategory_NotFast), nrow=2), 
-                                     alternative = "greater")$p.value) %>%
-  mutate(Significativity = ifelse(fisher_pvalue <= 0.05, "SIGN", "NO_SIGN"))
-
-######## ALL
-all_fisher_results_expr_df = vertebrate_fisher_test_df %>%
-  dplyr::bind_rows(insect_fisher_test_df) %>%
-  mutate(pvalue_to_plot = -log10(fisher_pvalue)) %>%
-  mutate(Clade = factor(Clade, levels=c("Vertebrata", "Insecta")),
-         Tissue = factor(Tissue, levels=ordered_tissues))
-
-################################################
-########### COMBINED PLOTS #####################
-################################################
-# 
-# line_df = data.frame(Category = c("Negative", "Positive"),
-#                      Clade = c("Vertebrata", "Insecta"),
-#                      x_coord = c(1,2),
-#                      y_coord = rep(0.75, 2))
-# 
-# diff_genes_tau_plots = ggplot(data=annotated_input_expr_sim_df, aes(x=Clade, y=Tau, fill=Clade)) +
-#   geom_boxplot(alpha=0.7) +
-#   geom_segment(data=line_df, aes(x=x_coord-0.5, xend=x_coord+0.5, y=y_coord, yend=y_coord), color="red", linetype="dashed") +
-#   theme_bw() +
-#   theme(axis.text = element_text(color="black"),
-#         axis.title = element_text(color="black")) +
-#   scale_fill_manual(values=c("Vertebrata"="darkorchid", "Insecta"="tan3")) +
-#   facet_wrap(~Category, nrow=1) +
-#   guides(fill="none")
-# 
-# ##### PLOT PVALUES
-# fisher_pvalues_plot = ggplot(data=all_fisher_results_expr_df, aes(x=Tissue, y=pvalue_to_plot, alpha=Significativity, fill=Tissue)) +
-#   geom_point(size=6, shape=21, color="black") +
-#   geom_hline(yintercept = -log10(0.05), color="black", linetype="dashed") +
-#   scale_fill_manual(values=tissue_colors) +
-#   scale_alpha_manual(values=c("SIGN"=1, "NO_SIGN"=0.3)) +
-#   theme_bw() +
-#   theme(axis.text.y = element_text(color="black"),
-#         axis.text.x = element_text(color="black", angle=30, hjust=1, vjust=1),
-#         axis.title = element_text(color="black"),
-#         legend.position = "bottom") +
-#   facet_wrap(~Clade) +
-#   ylab("-log10(pvalue)")
-# 
-# #print(fisher_pvalues_plot)
-# 
-# 
-# differentially_evolving_plots = plot_grid(diff_genes_tau_plots, fisher_pvalues_plot, ncol=1, rel_heights = c(1, 1))
-# #print(differentially_evolving_plots)
-```
-
-```{r tissue_speficicity_seq_bias, echo=FALSE, warning=FALSE, message=FALSE, dependson=c("setup", "functions"), fig.width=10, fig.height=10}
-#fig.width=12, fig.height=8
-#### Plot taus
-#Plot the taus in insects and vertebrates of genes in the leading edges as before (also compared to all genes)
-
-################################################
-########### ORTHOGROUPS AND TAUS ###############
-################################################
-taus_file = "/users/mirimia/fmantica/projects/bilaterian_GE/data/ts_gains_losses/species_QN_5_TPM_v6/All_version2/Bilateria_conserved_orthogroups-All_genes-associated_tissues.tab"
-taus_df = read.delim(taus_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID", "Tau", "Associated_tissue", "Top_tissue", "Expr_cutoff"))
-
-######### Filter for best ancestral orthologs
-orthogroup_file = paste0("/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets/selected_paralog_sets/Bilateria_conserved-", paralog_type, "_genes.txt")
-orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID"))
-selected_genes = as.vector(orthogroups_df$GeneID)
-
-taus_df = taus_df %>%
-  filter(GeneID %in% selected_genes, 
-         Species %in% c(Vertebrata, Insecta, "Bmo")) %>%
-  mutate(Clade = ifelse(Species %in% Vertebrata, "Vertebrata", "Insecta")) %>%
-  select(OG_ID, Clade, Tau)
-
-################################################
-########### LEADING EDGES ######################
-################################################
-
-##This depends on some previous chuncks
-leading_edges_sequence_positiveNES_df = data.frame(OG_ID = unique(unlist(subset(annotated_fgseaRes_sequence, NES > 0)$leadingEdge)), 
-                                       Feature = "sequence",
-                                       NES = "positive")
-leading_edges_sequence_negativeNES_df = data.frame(OG_ID = unique(unlist(subset(annotated_fgseaRes_sequence, NES < 0)$leadingEdge)), 
-                                       Feature = "sequence",
-                                       NES = "negative")
-leading_edges_expression_positiveNES_df = data.frame(OG_ID = unique(unlist(subset(annotated_fgseaRes_expression, NES > 0)$leadingEdge)), 
-                                       Feature = "expression",
-                                       NES = "positive")
-leading_edges_expression_negativeNES_df = data.frame(OG_ID = unique(unlist(subset(annotated_fgseaRes_expression, NES < 0)$leadingEdge)), 
-                                       Feature = "expression",
-                                       NES = "negative")
-
-################################################
-########### COMBINE TAUS AND LEADING EDGES #####
-################################################
-input_seq_sim_df = read.delim(paste0(general_patterns_dir, paralog_type, "/sequence_similarities/sequence_similarities_by_clade-", paralog_type, "_genes.tab"), header=TRUE)
-
-annotated_input_seq_sim_df = input_seq_sim_df %>%
-  mutate(Category = ifelse(OG_ID %in% leading_edges_sequence_positiveNES_df$OG_ID, "Positive", "None")) %>%
-  mutate(Category = ifelse(OG_ID %in% leading_edges_sequence_negativeNES_df$OG_ID, "Negative", Category)) %>%
-  select(OG_ID, Category) %>%
-  left_join(taus_df, by="OG_ID") %>%
-  mutate(Clade = factor(Clade, levels=c("Vertebrata", "Insecta")))
-
-
-################################################
-####### TS GENES ###############################
-################################################
-
-### Let's just try to look at the tissue-specificity of the single genes
-orthogroup_file = paste0(paralog_sets_dir, "selected_paralog_sets/Bilateria_conserved-", paralog_type, "_genes.txt")
-orthogroups_df = read.delim(orthogroup_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID")) %>%
-  mutate(Species = ifelse(Species=="BmA", "Bmo", Species))
-
-all_ts_genes_file = paste0(ts_gains_losses_dir, "Bilateria_conserved_orthogroups-All_genes-associated_tissues.tab")
-all_ts_genes_df = read.delim(all_ts_genes_file, header=FALSE, col.names=c("OG_ID", "Species", "GeneID", "Tau", "Tissue", "Top_tissue", "Expr_cutoff")) %>%
-  filter(Tau <= 0.75, Expr_cutoff=="YES_EXPR") %>%
-  select(GeneID, Tissue) %>%
-  right_join(orthogroups_df, by="GeneID") %>%
-  mutate(Tissue = ifelse(is.na(Tissue), "None", Tissue)) %>%
-  select(OG_ID, Species, GeneID, Tissue) %>%
-  ### Select only vertebrate and insect species
-  filter(Species %in% c(Vertebrata, Insecta)) %>%
-  mutate(Clade = ifelse(Species %in% Vertebrata, "Vertebrata", "Insecta"))
-
-#### Add the positive/negative label
-annotated_all_ts_genes_df = all_ts_genes_df %>%
-  mutate(Category = ifelse(OG_ID %in% leading_edges_sequence_positiveNES_df$OG_ID, "Positive", "None")) %>%
-  mutate(Category = ifelse(OG_ID %in% leading_edges_sequence_negativeNES_df$OG_ID, "Negative", Category)) %>%
-  mutate(Tissue = factor(Tissue, levels=rev(c("None", ordered_tissues))))
-
-################################################
-########### FISHER TEST ########################
-################################################
-
-######## VERTEBRATES
-vertebrate_fisher_input_df = annotated_all_ts_genes_df %>% 
-  filter(Tissue != "None") %>%
-  mutate(Category = ifelse(Category != "Negative", "NotFast", "Fast")) %>%
-  filter(Clade=="Vertebrata") %>%
-  group_by(Tissue, Category) %>% 
-  mutate(Tot=n()) %>% ungroup() %>% 
-  group_by(Category) %>% 
-  mutate(TotCategory = n()) %>% 
-  ungroup() %>%
-  select(Clade, Tissue, Category, Tot, TotCategory) %>% 
-  distinct() %>%
-  arrange(Tissue, Category) %>%
-  pivot_wider(names_from = Category, values_from = c(Tot, TotCategory), names_sep="_", values_fill=0)
-
-vertebrate_fisher_test_df = vertebrate_fisher_input_df %>%
-  rowwise() %>%
-  mutate(fisher_pvalue = fisher.test(matrix(c(Tot_Fast, TotCategory_Fast, Tot_NotFast, TotCategory_NotFast), nrow=2), 
-                                     alternative = "greater")$p.value) %>%
-  mutate(Significativity = ifelse(fisher_pvalue <= 0.05, "SIGN", "NO_SIGN"))
-
-
-######## INSECTS
-insect_fisher_input_df = annotated_all_ts_genes_df %>% 
-  filter(Tissue != "None") %>%
-  mutate(Category = ifelse(Category != "Positive", "NotFast", "Fast")) %>%
-  filter(Clade=="Insecta") %>%
-  group_by(Tissue, Category) %>% 
-  mutate(Tot=n()) %>% ungroup() %>% 
-  group_by(Category) %>% 
-  mutate(TotCategory = n()) %>% 
-  ungroup() %>%
-  select(Clade, Tissue, Category, Tot, TotCategory) %>% 
-  distinct() %>%
-  arrange(Tissue, Category) %>%
-  pivot_wider(names_from = Category, values_from = c(Tot, TotCategory), names_sep="_", values_fill=0)
-
-insect_fisher_test_df = insect_fisher_input_df %>%
-  rowwise() %>%
-  mutate(fisher_pvalue = fisher.test(matrix(c(Tot_Fast, TotCategory_Fast, Tot_NotFast, TotCategory_NotFast), nrow=2), 
-                                     alternative = "greater")$p.value) %>%
-  mutate(Significativity = ifelse(fisher_pvalue <= 0.05, "SIGN", "NO_SIGN"))
-
-######## ALL
-all_fisher_results_seq_df = vertebrate_fisher_test_df %>%
-  dplyr::bind_rows(insect_fisher_test_df) %>%
-  mutate(pvalue_to_plot = -log10(fisher_pvalue)) %>%
-  mutate(Clade = factor(Clade, levels=c("Vertebrata", "Insecta")),
-         Tissue = factor(Tissue, levels=ordered_tissues))
-
-################################################
-########### COMBINED PLOTS #####################
-################################################
-
-# line_df = data.frame(Category = c("Negative", "Positive"),
-#                      Clade = c("Vertebrata", "Insecta"),
-#                      x_coord = c(1,2),
-#                      y_coord = rep(0.75, 2))
-# 
-# diff_genes_tau_plots = ggplot(data=annotated_input_seq_sim_df, aes(x=Clade, y=Tau, fill=Clade)) +
-#   geom_boxplot(alpha=0.7) +
-#   geom_segment(data=line_df, aes(x=x_coord-0.5, xend=x_coord+0.5, y=y_coord, yend=y_coord), color="red", linetype="dashed") +
-#   theme_bw() +
-#   theme(axis.text = element_text(color="black"),
-#         axis.title = element_text(color="black")) +
-#   scale_fill_manual(values=c("Vertebrata"="darkorchid", "Insecta"="tan3")) +
-#   facet_wrap(~Category, nrow=1) +
-#   guides(fill="none")
-
-##### PLOT PVALUES
-# fisher_pvalues_plot = ggplot(data=all_fisher_results_seq_df, aes(x=Tissue, y=pvalue_to_plot, alpha=Significativity, fill=Tissue)) +
-#   geom_point(size=6, shape=24, color="black") +
-#   geom_hline(yintercept = -log10(0.05), color="black", linetype="dashed") +
-#   scale_fill_manual(values=tissue_colors) +
-#   scale_alpha_manual(values=c("SIGN"=1, "NO_SIGN"=0.3)) +
-#   theme_bw() +
-#   theme(axis.text.y = element_text(color="black"),
-#         axis.text.x = element_text(color="black", angle=30, hjust=1, vjust=1),
-#         axis.title = element_text(color="black"),
-#         legend.position = "bottom") +
-#   facet_wrap(~Clade) +
-#   ylab("-log10(pvalue)")
-
-#print(fisher_pvalues_plot)
-
-
-# differentially_evolving_plots = plot_grid(diff_genes_tau_plots, fisher_pvalues_plot, ncol=1, rel_heights = c(1, 1))
-#print(differentially_evolving_plots)
-```
+<!-- Sup Figure 12-16 are generated with the Alternative_scenarions Rmd (summed paralog expression alternative paralog selection approaches) -->
