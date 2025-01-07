@@ -5,26 +5,22 @@ general_paths:
   nobackup_dir: "/no_backup/mirimia/fmantica/vertebrate_insects_GE"
 
 paths:
-  general_patterns: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/general_patterns_v1"
+  general_patterns: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/general_patterns"
   gene_sets_dir: "/users/mirimia/fmantica/projects/bilaterian_GE/data/gene_sets"
   original_rel_expr_dir: "/users/mirimia/fmantica/projects/bilaterian_GE/data/ts_call/species_QN_taus/All_version2"
   rel_expr_dir: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/relative_expressions"
   paralog_sets_dir: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/paralog_sets"
-  housekeeping_dir: "/users/mirimia/fmantica/projects/vertebrate_insect_GE/data/house_keeping_genes"
 
 tools:
   compute_rel_expr: "./bin/compute_relative_expression.py"
   compute_pairwise_expr_sim: "./bin/compute_pairwise_expr_sim.py"
+  compute_pairwise_seq_sim: "./bin/compute_pairwise_seq_sim.py"
+  my_mafft: "/users/mirimia/fmantica/software/src/MAFFT_V2.0/mafft.bat"
 
 variables:
-  my_version: "All_version2"
+  gene_orthogroup_file: "/users/mirimia/fmantica/projects/bilaterian_GE/data/gene_sets/All_version2/STRICT/Bilateria/conserved/Bilateria_conserved_orthogroups-EXPR_genes.txt"
   all_species: ["Hs2", "Mm2", "Bt2", "Mdo", "Gga", "Xtr", "Dre", "Cmi", "Bla", "Sp2", "Dme", "Eba", "Aae", "BmA", "Tca", "Ame", "Bge", "Cdi", "Sma", "Obi"]
   vertebrata: ["Hs2", "Mm2", "Bt2", "Mdo", "Gga", "Xtr", "Dre", "Cmi"]
   insecta: ["Dme", "Eba", "Aae", "BmA", "Tca", "Ame", "Bge", "Cdi"]
-  deuterostoma: ["Hs2", "Mm2", "Bt2", "Mdo", "Gga", "Xtr", "Dre", "Cmi", "Bla", "Sp2"]
-  protostoma: ["Dme", "Eba", "Aae", "BmA", "Tca", "Ame", "Bge", "Cdi", "Sma", "Obi"]
   all_tissues: ["Neural", "Muscle", "Testis", "Ovary", "Epithelial", "Kidney", "DigestiveTract"]
   my_measures: ["sequence_similarities", "expression_similarities"]
-  #my_measures: ["sequence_similarities", "expression_similarities", "expression_distances", "expression_correlations"]
-  conservation_categories: ["vertebrata_most_conserved", "vertebrata_least_conserved", "insecta_most_conserved", "insecta_least_conserved", "highest_delta", "lowest_delta"]
-  paralog_types: ["BA_comb", "BD_comb", "BA_seq", "BD_seq", "BA_expr", "BD_expr"]

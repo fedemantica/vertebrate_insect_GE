@@ -6,5 +6,21 @@
     "time" : "00:15:00",
     "disk" : "5G",
     "queue" : "short-centos79"
+  },
+  "compute_pairwise_seq_similarities" :
+  {
+    "qsub" : "qsub -cwd -o \"logs/'{rule}.{wildcards}.$$.out'\" -e \"logs/'{rule}.{wildcards}.$$.out'\"",
+    "ram" : "3G",
+    "time" : "00:10:00",
+    "disk" : "5G",
+    "queue" : "short-centos79"
+  },
+  "compute_pairwise_expr_similarities" :
+  {
+    "qsub" : "qsub -cwd -o \"logs/'{rule}.{wildcards}.$$.out'\" -e \"logs/'{rule}.{wildcards}.$$.out'\"",
+    "ram" : "3G",
+    "time" : "00:10:00",
+    "disk" : "5G",
+    "queue" : "short-centos79"
   }
 }

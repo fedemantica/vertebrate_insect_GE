@@ -8,25 +8,21 @@ GENE_SETS_DIR = config["paths"]["gene_sets_dir"]
 ORIGINAL_REL_EXPR_DIR = config["paths"]["original_rel_expr_dir"]
 REL_EXPR_DIR = config["paths"]["rel_expr_dir"]
 PARALOG_SETS_DIR = config["paths"]["paralog_sets_dir"]
-HOUSEKEEPING_DIR = config["paths"]["housekeeping_dir"]
 
 ######## tools ############
 COMPUTE_REL_EXPR = config["tools"]["compute_rel_expr"]
 COMPUTE_PAIRWISE_EXPR_SIM = config["tools"]["compute_pairwise_expr_sim"]
+COMPUTE_PAIRWISE_SEQ_SIM = config["tools"]["compute_pairwise_seq_sim"]
+MY_MAFFT = config["tools"]["my_mafft"]
 
 ###### variables ###########
+GENE_ORTHOGROUP_FILE = config["variables"]["gene_orthogroup_file"]
 ALL_SPECIES = config["variables"]["all_species"]
 VERTEBRATA = config["variables"]["vertebrata"]
 INSECTA = config["variables"]["insecta"]
-
-CLADE_SPECIES_DICT = {}
-CLADE_SPECIES_DICT["Vertebrata"] = VERTEBRATA
-CLADE_SPECIES_DICT["Insecta"] = INSECTA
-
 ALL_TISSUES = config["variables"]["all_tissues"]
-
 MY_MEASURES = config["variables"]["my_measures"]
-PARALOG_TYPES = config["variables"]["paralog_types"]
+
 
 #Count batches number and get a list of all batches
 import os.path
@@ -39,7 +35,7 @@ else:
   BATCH_NUMBER = 1
 
 ###### targets ##########
-BATCH_PAIRWISE_EXPR_SIM = expand("{path}/pairwise_expression_similarities/batch_{batch_number}-expression_similarities.tab", path=PARALOG_SETS_DIR, batch_number=BATCH_NUMBER)
+BATCH_PAIRWISE_SIM = expand("{path}/pairwise_{my_measure}/batch_{batch_number}-{my_measure}.tab", path=PARALOG_SETS_DIR, my_measure=MY_MEASURES, batch_number=BATCH_NUMBER)
 ALL_PAIRWISE_EXPR_SIM = PARALOG_SETS_DIR+"/pairwise_expression_similarities/all_pairwise_expression_similarities.txt"
 ALL_PAIRWISE_SEQ_SIM = PARALOG_SETS_DIR+"/pairwise_sequence_similarities/all_pairwise_sequence_similarities.txt"
 
@@ -66,12 +62,12 @@ rule compute_relative_expression:
 
 
 #######################################################
-###### COMPUTE PAIRWISE EXPRESSION SIMILARITY #########
+##### GET BATCHES #####################################
 #######################################################
 
 rule split_orthogroups:
 	input:
-		GENE_SETS_DIR+"/All_version2/STRICT/Bilateria/conserved/Bilateria_conserved_orthogroups-EXPR_genes.txt"
+		GENE_ORTHOGROUP_FILE
 	output:
 		PARALOG_SETS_DIR+"/orthogroups_batches/orthogroups_batch_1.txt"
 	params:
@@ -93,6 +89,7 @@ rule split_orthogroups:
 		  batch_df.to_csv(params.output_dir+"/orthogroups_batch_"+str(group_num)+".txt", sep="\t", index=False, header=False, na_rep="NA")
 		  group_num = group_num + 1
 
+
 rule get_batch_number:
 	input:
 		PARALOG_SETS_DIR+"/orthogroups_batches/orthogroups_batch_1.txt"
@@ -105,8 +102,81 @@ rule get_batch_number:
 		ls {params.output_dir} | grep orthogroups_batch | wc -l > {output}
 		"""
 
+
+#######################################################
+###### COMPUTE PAIRWISE SEQUENCE SIMILARITY ###########
+#######################################################
+
+#This rule I will run only once starting from the general orthogroups
+rule compute_pairwise_seq_similarities:
+	input:
+		orthogroups = PARALOG_SETS_DIR+"/orthogroups_batches/orthogroups_batch_{batch_number}.txt",
+		score_matrix = SCORE_MATRIX_DIR+"/original_score_matrix.tab"
+	output:
+		stats = PARALOG_SETS_DIR+"/pairwise_sequence_similarities/batch_{batch_number}/batch_{batch_number}-stats.txt",
+		sim_scores = PARALOG_SETS_DIR+"/pairwise_sequence_similarities/batch_{batch_number}/batch_{batch_number}-sim_scores.tab"
+	params:
+		input_fastas = BROCCOLI+"/All_version2/corrected_fastas",
+		output_dir = PARALOG_SETS_DIR+"/pairwise_sequence_similarities/batch_{batch_number}"
+	shell:
+		"""
+		rm -fr {params.output_dir}/*; \
+		for OG_ID in $(cat {input.orthogroups} | cut -f1 | sort | uniq); do \
+			cat {input.orthogroups} | awk -v orthogroup=$OG_ID '$1==orthogroup' > {params.output_dir}/orthogroups_input.tmp; \
+			python {COMPUTE_PAIRWISE_SEQ_SIM}	--orthogroups {params.output_dir}/orthogroups_input.tmp \
+								--OG_ID $OG_ID \
+								--input_fastas {params.input_fastas} \
+								--gap_penalty 0 \
+								--mafft {MY_MAFFT} \
+								--score_matrix {input.score_matrix} \
+								--output {params.output_dir}; \
+			rm {params.output_dir}/orthogroups_input.tmp; done; \
+		echo "All orthogroups in batch were processed" > {output.stats}
+		cat {params.output_dir}/*-all_sim_scores > {output.sim_scores}
+		"""
+
+rule join_pairwise_seq_similarities:
+	input:
+		expand("{path}/pairwise_sequence_similarities/batch_{batch_number}/batch_{batch_number}-sim_scores.tab", path=PARALOG_SETS_DIR, batch_number=BATCH_NUMBER)
+	output:
+		PARALOG_SETS_DIR+"/pairwise_sequence_similarities/all_pairwise_sequence_similarities-raw.txt"
+	params:
+		input_dir = PARALOG_SETS_DIR+"/pairwise_sequence_similarities"
+	shell:
+		"""
+		cat {params.input_dir}/batch_*/batch_*-sim_scores.tab > {output}
+		"""
+
+rule adjust_pairwise_seq_similarities:
+	input:
+		pairwise_seq_sim = PARALOG_SETS_DIR+"/pairwise_sequence_similarities/all_pairwise_sequence_similarities-raw.txt",
+		orthogroups = GENE_ORTHOGROUP_FILE
+	output:
+		PARALOG_SETS_DIR+"/pairwise_sequence_similarities/all_pairwise_sequence_similarities.txt"
+	params:
+		considered_species = VERTEBRATA+INSECTA
+	run:
+		import pandas as pd
+
+		#### Upload inputs
+		pairwise_seq_sim_df = pd.read_table(str(input.pairwise_seq_sim), sep="\t", index_col=False, header=None, names=["OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", "Seq_sim"])
+		orthogroups_df = pd.read_table(str(input.orthogroups), sep="\t", index_col=False, header=None, names=["OG_ID", "Species", "GeneID"])
+		#### Remove outgroups
+		pairwise_seq_sim_df = pairwise_seq_sim_df.loc[(pairwise_seq_sim_df["Species1"].isin(params.considered_species)) & (pairwise_seq_sim_df["Species2"].isin(params.considered_species))]
+		#### Update Species1 and Species2 to match gene order
+		geneID_species_dict = pd.Series(orthogroups_df.Species.values, index=orthogroups_df.GeneID).to_dict()
+		pairwise_seq_sim_df["Species1"] = pairwise_seq_sim_df["GeneID1"].map(geneID_species_dict)
+		pairwise_seq_sim_df["Species2"] = pairwise_seq_sim_df["GeneID2"].map(geneID_species_dict)		
+		#### Save to file
+		pairwise_seq_sim_df.to_csv(str(output), sep="\t", index=False, header=False, na_rep="NA")
+
+
+
+#######################################################
+###### COMPUTE PAIRWISE EXPRESSION SIMILARITY #########
+#######################################################
 ### See at the beginning of the Snakefile for the definition of batch number
-rule compute_pairwise_expr_sim:
+rule compute_pairwise_expr_similarities:
 	input:
 		orthogroups = PARALOG_SETS_DIR+"/orthogroups_batches/orthogroups_batch_{batch_number}.txt",
 		rel_expr_files = expand(REL_EXPR_DIR+"/{species}-protein_coding_relative_ts.tab", species=VERTEBRATA+[species if species != "BmA" else "Bmo" for species in INSECTA])
@@ -138,30 +208,3 @@ rule join_pairwise_expr_similarities:
 		"""
 		cat {params.input_dir}/batch_*-expression_similarities.tab > {output}	
 		"""
-
-#######################################################
-###### ADJUST PAIRWISE SEQUENCE SIMILARITIES ##########
-#######################################################
-
-rule adjust_pairwise_seq_similarities:
-	input:
-		pairwise_seq_sim = "/users/mirimia/fmantica/projects/bilaterian_GE/data/gene_sets/All_version2/sequence_similarities/all_pairwise_sequence_similarities.txt",
-		orthogroups = GENE_SETS_DIR+"/All_version2/STRICT/Bilateria/conserved/Bilateria_conserved_orthogroups-EXPR_genes.txt"
-	output:
-		PARALOG_SETS_DIR+"/pairwise_sequence_similarities/all_pairwise_sequence_similarities.txt"
-	params:
-		considered_species = VERTEBRATA+INSECTA
-	run:
-		import pandas as pd
-
-		#### Upload inputs
-		pairwise_seq_sim_df = pd.read_table(str(input.pairwise_seq_sim), sep="\t", index_col=False, header=None, names=["OG_ID", "Species1", "Species2", "GeneID1", "GeneID2", "Seq_sim"])
-		orthogroups_df = pd.read_table(str(input.orthogroups), sep="\t", index_col=False, header=None, names=["OG_ID", "Species", "GeneID"])
-		#### Remove outgroups
-		pairwise_seq_sim_df = pairwise_seq_sim_df.loc[(pairwise_seq_sim_df["Species1"].isin(params.considered_species)) & (pairwise_seq_sim_df["Species2"].isin(params.considered_species))]
-		#### Update Species1 and Species2 to match gene order
-		geneID_species_dict = pd.Series(orthogroups_df.Species.values, index=orthogroups_df.GeneID).to_dict()
-		pairwise_seq_sim_df["Species1"] = pairwise_seq_sim_df["GeneID1"].map(geneID_species_dict)
-		pairwise_seq_sim_df["Species2"] = pairwise_seq_sim_df["GeneID2"].map(geneID_species_dict)		
-		#### Save to file
-		pairwise_seq_sim_df.to_csv(str(output), sep="\t", index=False, header=False, na_rep="NA")
