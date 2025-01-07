@@ -9,10 +9,11 @@ Table of contents
   + [All pairwise similarities](#all-pairwise-similarities)
   + [Seq and expr sim analyses](#seq-and-expr-sim-analyses)
   + [Paralogous sets selection](#paralogous-sets-selection)
-  + [Alternative expr metrics](#alternative-expr-metrics)
+  + [Alternative expr metrics](#alternative-seq-expr-metrics)
+  + [Date paralog origin](#data-paralog-origin)
 * [Figures](#figures)  
   + [Main figures](#main-figures)   
-  + [One to one orthogroup figures](#one-to-one-orthogroup-figures)  
+  + [Alternative setups figures](#alternative-setups-figures)  
 
 ### Study Overview 
 
@@ -37,7 +38,6 @@ This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the ma
 * Compute the **relative expression** across tissues for all the bilaterian-conserved, protein-coding genes of the 16 vertebrates and insect species included in our dataset.  
 * Compute **all pairwise sequence similarities** between all possible pairs of genes (from different species) in an orthogroup.  
 * Compute **all pairwise expression similarities** between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression across tissues.  
-* Compute the average **phastCons** across the coding sequence of all human genes.  
 
 #### Seq and expr sim analyses
 This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
@@ -46,6 +46,7 @@ This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the ma
 * Compute pairwise and average **expression similarities** for each gene orthogroups, starting from the relative expression across tissues of all its representative orthologs.  
 * Define groups containing **500 most and least conserved gene orthogroups** in terms of sequence or expression similarities between either vertebrates or insects.  
 * Generate inputs for **GO enrichments** of common lowly or highly diversified genes (see Fig.4 from Figures/All_Figures.Rmd).  
+* NB: These rules are also use to generate the corresponding files upon all the alternative setup scenarios (see Analyses/3_ALTERNATIVE_SEQ_EXPR_METRICS and Figure/Alternative_setups_Figures.Rmd).  
 
 #### Paralogous sets selection
 This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
@@ -54,13 +55,24 @@ This folder contains snakemake pipeline (i.e., **Snakefile**) used to run the ma
 * Select all extra paralogous sets (**BA-seq, BD-seq, BA-expr, BD-exr**) based on the most extreme similarity values across orthogroups: the highest for BA sets (Best-Ancestral) and the lowest for BD sets (Best-Divergent).  
 * Define vertebrate housekeeping genes.  
 
-#### Alternative expr metrics  
+#### Alternative seq and expr metrics  
 
 This folder contains snakemake pipeline a (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
 
 * Compute **all pairwise expression correlations** (spearman's rho) between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression across tissues.  
 * Compute **all pairwise expression distances** (euclidean distance) between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression across tissues.  
-* NB: the rule used to compute **average expression correlations or distance** (spearman's rho or euclidean distance, respectively) for each gene orthogroup in vertebrates and insects is present in the snakemake pipeline Analyses/2_PARALOGOUS_SETS_SELECTION.
+* Compute **all pairwise sequence similarities** between all possible pairs of genes (from different species) in an orthogroup, directly using values from *blosum62*.    
+* Compute **all pairwise sequence similarities** between all possible pairs of genes (from different species) in an orthogroup, directly using values from *blosum45*.  
+* Compute **all pairwise sequence similarities** between all possible pairs of genes (from different species) in an orthogroup, as in the main approach (see Analyses/0_ALL_PAIRWISE_SIMILARITIES) but removing leading/trailing gaps from the alignments.  
+* Compute **all pairwise expression similarities** between all possible pairs of genes (from different species) in an orthogroup, starting from their relative expression across tissues computed from **summed paralogs expression**.  
+* Compute the average **phastCons** across the coding sequence of all human genes.  
+
+#### Date paralog origin  
+This folder contains snakemake pipeline a (i.e., **Snakefile**) used to run the majority of computational analyses, together with the relative configuration file (**config.yml**) and a file with the parameters needed for cluster job submission (**cluster.json**). All relevant scripts can be found in the bin subfolder. The Snakefile includes rules to:  
+
+* Generate **multiple alignments** of all the genes included in the considered orthogroups.  
+* Build **gene trees** starting from these alignments.  
+* Parse the gene trees to **date the origin** of all paralogs through a species-overal approach.  
 
 
 ### Figures
@@ -77,11 +89,22 @@ The code to generate the following figures is available in **All_Figures.Rmd**.
 * **Figure 4**: Functional categories with common molecular diversification patterns between clades.  
 * **Figure 5**: Functional categories with molecular diversification biases between clades.   
 * **Supplementary Figure 1**: Schematics for computation of sequence/expression similarity and definition of extra 1:1 orthogroup sets.  
-* **Supplementary Figure 2**: Deltas of sequence and expression similarities between vertebrates and insects.  
-* **Supplementary Figure 3**: Comparison between alternative measures of sequence and expression conservation.  
+* **Supplementary Figure 2**: GO enrichments and GSEA performed with fruit fly based GO annotations.  
+* **Supplementary Figure 3**: Deltas of sequence and expression similarities between vertebrates and insects.  
+* **Supplementary Figure 4**: Comparison between alternative measures of sequence conservation.  
+* **Supplementary Figure 5**: Comparison between sequence similarities computation methods.  
+* **Supplementary Figure 9**: Comparison of sequence similarities computed upon different phylogenetic setups.  
+* **Supplementary Figure 10**: Influence of paralog number and paralog origin on sequence similarities.  
+* **Supplementary Figure 11**: Comparison between alternative measures of expression conservation.  
 
-#### One to one orthogroup figures  
+#### Alternative setups figures  
 
-The code to generate the following figures is available in **One2one_Orthogroups_Figures.Rmd**.  
+The code to generate the following figures is available in **Alternative_setups_Figures.Rmd**.  
 
-* **Supplementary Figures 4-6**: Key results repeated with extra paralogous sets (BA-seq, BD-seq, BA-expr, BD-expr).   
+* **Supplementary Figure 6**: Key results repeated by computing sequence similarities with the blosum62 computation method.  
+* **Supplementary Figure 7**: Key results repeated by computing sequence similarities with the blosum45 computation method.  
+* **Supplementary Figure 8**: Key results repeated by computing sequence similarities not considering leading and trailing gaps.  
+* **Supplementary Figure 12**: Key results repeated by computing expression similarities from summed paralog expression.  
+* **Supplementary Figures 13-16**: Key results repeated with extra paralogous sets (BA-seq, BD-seq, BA-expr, BD-expr).   
+
+
